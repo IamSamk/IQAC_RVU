@@ -4,7 +4,9 @@ import { AuthContext } from '../context/AuthContext';
 import { mergePDFs, downloadPDF } from '../utils/pdfUtils';
 import './TeachingAndLearning.css';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = import.meta.env.PROD 
+  ? 'https://iqac-rvu.onrender.com' 
+  : 'http://localhost:5000';
 
 const TeachingAndLearning = () => {
   const { user: contextUser, getToken } = useContext(AuthContext);

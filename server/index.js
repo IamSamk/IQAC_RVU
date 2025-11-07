@@ -11,7 +11,10 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: environment.CORS_ORIGIN,
+  origin: [
+    'http://localhost:5173',
+    'https://iqac-nu.vercel.app'
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -143,4 +146,4 @@ app.listen(environment.PORT, () => {
   console.log(`📁 File naming: ${environment.FILE_NAMING_FORMAT}`);
   console.log(`🔗 Frontend: ${environment.CORS_ORIGIN}`);
   console.log(`📅 Started: ${new Date().toISOString()}`);
-}); 
+});
