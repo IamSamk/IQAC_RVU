@@ -10,6 +10,7 @@ import {
   isValidCourseName 
 } from '../utils/courseMapping';
 import './Roles.css';
+import { API_BASE_URL } from '../config/api';
 
 const Roles = () => {
   const { user, getToken } = useContext(AuthContext);
@@ -74,7 +75,7 @@ const Roles = () => {
 
   const fetchAssignments = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/tasks', {
+      const response = await fetch('${API_BASE_URL}/api/tasks', {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -95,7 +96,7 @@ const Roles = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/users', {
+      const response = await fetch('${API_BASE_URL}/api/auth/users', {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -250,7 +251,7 @@ const Roles = () => {
         updateData.assignedToReviewer = null; // Clear legacy field for multiple users
       }
 
-      const response = await fetch(`http://localhost:5000/api/tasks/${editingAssignment._id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${editingAssignment._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -372,7 +373,7 @@ const Roles = () => {
         assignmentData.assignedToReviewers = selectedReviewers.map(user => user._id);
       }
 
-      const response = await fetch('http://localhost:5000/api/tasks', {
+      const response = await fetch('${API_BASE_URL}/api/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -414,7 +415,7 @@ const Roles = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch('${API_BASE_URL}/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -515,7 +516,7 @@ const Roles = () => {
 
   const handleUserRoleUpdate = async (userId, field, value) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/auth/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/users/${userId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

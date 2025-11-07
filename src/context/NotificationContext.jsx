@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 
 // Create and export the NotificationContext
 export const NotificationContext = createContext();
@@ -54,7 +55,7 @@ export const NotificationProvider = ({ children }) => {
       });
       console.log('   Category:', category);
       
-      let url = 'http://localhost:5000/api/notifications';
+      let url = '${API_BASE_URL}/api/notifications';
       if (category === 'categorized') {
         url += '/categorized';
       } else if (category !== 'all') {
@@ -135,7 +136,7 @@ export const NotificationProvider = ({ children }) => {
     if (!token || !user) return;
     
     try {
-      const response = await fetch('http://localhost:5000/api/notifications/counts', {
+      const response = await fetch('${API_BASE_URL}/api/notifications/counts', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -156,7 +157,7 @@ export const NotificationProvider = ({ children }) => {
     if (!token) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/click`, {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/click`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -206,7 +207,7 @@ export const NotificationProvider = ({ children }) => {
     if (!token) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -247,7 +248,7 @@ export const NotificationProvider = ({ children }) => {
     if (!token) return;
     
     try {
-      const response = await fetch('http://localhost:5000/api/notifications/read-all', {
+      const response = await fetch('${API_BASE_URL}/api/notifications/read-all', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -281,7 +282,7 @@ export const NotificationProvider = ({ children }) => {
     if (!token) return;
     
     try {
-      const response = await fetch('http://localhost:5000/api/notifications/clear-all', {
+      const response = await fetch('${API_BASE_URL}/api/notifications/clear-all', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -314,7 +315,7 @@ export const NotificationProvider = ({ children }) => {
     });
     
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

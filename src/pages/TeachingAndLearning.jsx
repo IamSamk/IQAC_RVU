@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { mergePDFs, downloadPDF } from '../utils/pdfUtils';
 import './TeachingAndLearning.css';
+import { API_BASE_URL } from '../config/api';
 
 const API_BASE = import.meta.env.PROD 
   ? 'https://iqac-rvu.onrender.com' 
-  : 'http://localhost:5000';
+  : '${API_BASE_URL}';
 
 const TeachingAndLearning = () => {
   const { user: contextUser, getToken } = useContext(AuthContext);
@@ -86,8 +87,8 @@ const TeachingAndLearning = () => {
     try {
       // Use different endpoints based on user role
       const endpoint = userRole === 'admin' 
-        ? `http://localhost:5000/api/tasks`
-        : `http://localhost:5000/api/tasks`;
+        ? `${API_BASE_URL}/api/tasks`
+        : `${API_BASE_URL}/api/tasks`;
         
       const response = await fetch(endpoint, {
         headers: {
@@ -113,8 +114,8 @@ const TeachingAndLearning = () => {
       // For admin: get all completed tasks
       // For users: get completed tasks for their assignments
       const endpoint = (userRole === 'admin' || userRole === 'super_admin' || currentUser?.role === 'super_admin')
-        ? `http://localhost:5000/api/tasks?status=completed`
-        : `http://localhost:5000/api/tasks?status=completed&user=${currentUser?._id}`;
+        ? `${API_BASE_URL}/api/tasks?status=completed`
+        : `${API_BASE_URL}/api/tasks?status=completed&user=${currentUser?._id}`;
         
       const response = await fetch(endpoint, {
         headers: {
@@ -457,7 +458,7 @@ const TeachingAndLearning = () => {
     try {
       showMessage('Generating review document...', 'info');
       
-      const response = await fetch(`http://localhost:5000/api/review-documents/generate`, {
+      const response = await fetch(`${API_BASE_URL}/api/review-documents/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -525,7 +526,7 @@ const TeachingAndLearning = () => {
         formData.append(key, metadata[key]);
       });
       
-      const uploadResponse = await fetch('http://localhost:5000/api/files/upload', {
+      const uploadResponse = await fetch('${API_BASE_URL}/api/files/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${getToken()}`,
@@ -550,8 +551,8 @@ const TeachingAndLearning = () => {
     try {
       // Use new reviewer routes instead of old ones
       const endpoint = action === 'approve' 
-        ? `http://localhost:5000/api/tasks/${assignmentId}/reviewer-approve`
-        : `http://localhost:5000/api/tasks/${assignmentId}/reviewer-reject`;
+        ? `${API_BASE_URL}/api/tasks/${assignmentId}/reviewer-approve`
+        : `${API_BASE_URL}/api/tasks/${assignmentId}/reviewer-reject`;
       
       console.log('API endpoint:', endpoint);
       
@@ -604,7 +605,7 @@ const TeachingAndLearning = () => {
     if (assignment.fileId) {
       const token = getToken();
       console.log('Preview token:', token ? 'Token exists' : 'No token');
-      const previewUrl = `http://localhost:5000/api/files/${assignment.fileId}/download?token=${token}`;
+      const previewUrl = `${API_BASE_URL}/api/files/${assignment.fileId}/download?token=${token}`;
       console.log('Preview URL:', previewUrl);
       setPreviewFileUrl(previewUrl);
       setShowPreviewModal(true);
@@ -613,7 +614,7 @@ const TeachingAndLearning = () => {
 
   const handleAdminApprove = async (assignmentId, comment = '') => {
     try {
-      const response = await fetch(`http://localhost:5000/api/tasks/${assignmentId}/approve`, {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${assignmentId}/approve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -664,7 +665,7 @@ const TeachingAndLearning = () => {
       // Prepare PDF URLs with titles
       const token = getToken();
       const pdfUrls = documentsToMerge.map(doc => ({
-        url: `http://localhost:5000/api/files/${doc.fileId}/download?token=${token}`,
+        url: `${API_BASE_URL}/api/files/${doc.fileId}/download?token=${token}`,
         title: `${doc.courseCode} - ${doc.courseName}`,
         courseCode: doc.courseCode
       }));

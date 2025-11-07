@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import './TeachingAndLearning.css';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = '${API_BASE_URL}';
 
 const TeachingAndLearning = () => {
   const { user: contextUser } = useContext(AuthContext);
@@ -65,7 +66,7 @@ const TeachingAndLearning = () => {
 
   const fetchUserAssignments = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/tasks`, {
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
