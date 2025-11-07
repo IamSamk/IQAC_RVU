@@ -75,7 +75,7 @@ const Roles = () => {
 
   const fetchAssignments = async () => {
     try {
-      const response = await fetch('${API_BASE_URL}/api/tasks', {
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -96,7 +96,7 @@ const Roles = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await fetch('${API_BASE_URL}/api/auth/users', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/users`, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -373,7 +373,7 @@ const Roles = () => {
         assignmentData.assignedToReviewers = selectedReviewers.map(user => user._id);
       }
 
-      const response = await fetch('${API_BASE_URL}/api/tasks', {
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -415,7 +415,7 @@ const Roles = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('${API_BASE_URL}/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

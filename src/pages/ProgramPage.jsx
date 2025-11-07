@@ -296,7 +296,7 @@ const ProgramPage = ({ aboutTexts }) => {
 
     try {
       const token = getToken();
-      const response = await fetch("`${API_BASE_URL}/api/files/upload", {
+      const response = await fetch(`${API_BASE_URL}/api/files/upload`, {
         method: "POST",
         headers: {
           'Authorization': `Bearer ${token}`

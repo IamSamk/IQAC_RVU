@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../config/api';
 
 const API_BASE = import.meta.env.PROD 
   ? 'https://iqac-rvu.onrender.com' 
-  : '${API_BASE_URL}';
+  : `${API_BASE_URL}';
 
 const TeachingAndLearning = () => {
   const { user: contextUser, getToken } = useContext(AuthContext);
@@ -526,7 +526,7 @@ const TeachingAndLearning = () => {
         formData.append(key, metadata[key]);
       });
       
-      const uploadResponse = await fetch('${API_BASE_URL}/api/files/upload', {
+      const uploadResponse = await fetch(`${API_BASE_URL}/api/files/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${getToken()}`,

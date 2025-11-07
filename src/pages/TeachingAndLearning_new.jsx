@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import './TeachingAndLearning.css';
 import { API_BASE_URL } from '../config/api';
 
-const API_BASE = '${API_BASE_URL}';
+const API_BASE = API_BASE_URL;
 
 const TeachingAndLearning = () => {
   const { user: contextUser } = useContext(AuthContext);
