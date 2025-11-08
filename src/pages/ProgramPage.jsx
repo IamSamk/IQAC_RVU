@@ -8,11 +8,13 @@ import { API_BASE_URL } from '../config/api'; // Corrected import path
 // A new component to handle the logic for displaying different file types
 const FilePreview = ({ file }) => {
   const [textContent, setTextContent] = useState("");
+  const { getToken } = useContext(AuthContext);
 
   useEffect(() => {
     if (file && file.mimetype && file.mimetype.startsWith("text/")) {
       setTextContent("Loading text content...");
-      fetch(`${API_BASE_URL}/api/files/${file._id}/download`)
+      const token = getToken();
+      fetch(`${API_BASE_URL}/api/files/${file._id}/download?token=${token}`)
         .then(res => {
           if (!res.ok) throw new Error('Failed to fetch text content');
           return res.text();
@@ -26,7 +28,8 @@ const FilePreview = ({ file }) => {
     return null;
   }
 
-  const fileUrl = `${API_BASE_URL}/api/files/${file._id}/download`;
+  const token = getToken();
+  const fileUrl = `${API_BASE_URL}/api/files/${file._id}/download?token=${token}`;
 
   if (file.mimetype === "application/pdf") {
     return <PDFViewer fileUrl={fileUrl} />;
@@ -459,7 +462,7 @@ const ProgramPage = ({ aboutTexts }) => {
                 </p>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <a 
-                    href={`${API_BASE_URL}/api/files/${existingFile._id}/download`} 
+                    href={`${API_BASE_URL}/api/files/${existingFile._id}/download?token=${getToken()}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     style={{ 
@@ -509,7 +512,7 @@ const ProgramPage = ({ aboutTexts }) => {
             {viewedFile ? (
               <div style={{ marginTop: 12 }}>
                 <div style={{ marginBottom: 8 }}>
-                  <a href={`${API_BASE_URL}/api/files/${viewedFile._id}/download`} target="_blank" rel="noopener noreferrer">Open in new tab</a>
+                  <a href={`${API_BASE_URL}/api/files/${viewedFile._id}/download?token=${getToken()}`} target="_blank" rel="noopener noreferrer">Open in new tab</a>
                 </div>
                 <FilePreview file={viewedFile} />
               </div>
