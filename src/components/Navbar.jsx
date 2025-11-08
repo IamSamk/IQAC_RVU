@@ -136,6 +136,10 @@ const Navbar = () => {
           <FaTachometerAlt /> Dashboard
         </Link>
 
+        <Link to="/brochures" style={linkStyle} className="nav-hover">
+          <FaFileAlt /> Brochures
+        </Link>
+
         <Link to="/policy" style={linkStyle} className="nav-hover">
           <FaFileAlt /> Policy
         </Link>

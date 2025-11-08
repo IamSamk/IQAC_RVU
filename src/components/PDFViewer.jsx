@@ -5,7 +5,8 @@ const PDFViewer = ({
   fileUrl, 
   showControls = true, 
   fitParentWidth = false,
-  height = '600px' 
+  height = '600px',
+  interactive = true
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -95,7 +96,13 @@ const PDFViewer = ({
         </div>
       )}
       
-      <div className="pdf-iframe-wrapper" style={{ height: showControls ? 'calc(100% - 60px)' : '100%' }}>
+      <div
+        className="pdf-iframe-wrapper"
+        style={{
+          height: showControls ? 'calc(100% - 60px)' : '100%',
+          overflow: interactive ? 'auto' : 'hidden'
+        }}
+      >
         <iframe
           src={fileUrl}
           title="PDF Viewer"
@@ -103,10 +110,12 @@ const PDFViewer = ({
           height="100%"
           style={{
             border: 'none',
-            borderRadius: '4px'
+            borderRadius: '4px',
+            pointerEvents: interactive ? 'auto' : 'none'
           }}
           onLoad={() => setIsLoading(false)}
           onError={() => setHasError(true)}
+          scrolling={interactive ? 'auto' : 'no'}
         />
       </div>
     </div>

@@ -17,6 +17,7 @@ import CurriculumDev from "./pages/CurriculumDev";
 import ProgramPage from "./pages/ProgramPage";
 import TeachingAndLearning from "./pages/TeachingAndLearning";
 import Roles from "./pages/Roles";
+import Brochures from "./pages/Brochures";
 
 const aboutTexts = {
   BTECH: "About BTech program...",
@@ -44,6 +45,7 @@ const App = () => {
           <Route path="/about" element={<About />} />
           <Route path="/policy" element={<Policy />} />
           <Route path="/template" element={<Template />} />
+          <Route path="/brochures" element={<Brochures />} />
           <Route path="/curriculum" element={<CurriculumDev />} />
           <Route path="/program" element={<ProgramPage aboutTexts={aboutTexts} />} />
           <Route path="/teaching-and-learning" element={

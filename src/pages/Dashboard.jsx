@@ -73,11 +73,9 @@ export default function Dashboard() {
       {/* Top Row */}
       <div className="dashboard-top-row">
         <div className="dashboard-card">
-          <div className="dashboard-image-placeholder">
+          <div className="dashboard-image-placeholder mission-placeholder">
             <div className="placeholder-content">
-              <div className="placeholder-icon">🎯</div>
-              <div className="placeholder-text">MISSION</div>
-              <div className="placeholder-subtext">Excellence in Education</div>
+              <div className="placeholder-icon mission-icon">🎯</div>
             </div>
           </div>
           <div className="dashboard-card-title">Socse Mission and Vision</div>

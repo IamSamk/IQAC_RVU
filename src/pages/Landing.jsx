@@ -1,5 +1,4 @@
 import React from "react";
-import AIChatbot from '../components/AIChatbot.jsx';
 import iqac1 from "../assets/iqac1.jpg";
 import iqac2 from "../assets/iqac2.jpg";
 import iqac3 from "../assets/iqac3.jpg";
@@ -168,6 +167,7 @@ const AchievementsSection = () => {
                   fileUrl={`/pdfs/${file}`}
                   showControls={false}
                   fitParentWidth={true}
+                  interactive={false}
                 />
               </div>
               <p style={{ 
@@ -513,7 +513,6 @@ const Landing = () => {
             
           
       </footer>
-      <AIChatbot />
     </div>
   );
 };
