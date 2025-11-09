@@ -18,6 +18,8 @@ import ProgramPage from "./pages/ProgramPage";
 import TeachingAndLearning from "./pages/TeachingAndLearning";
 import Roles from "./pages/Roles";
 import Brochures from "./pages/Brochures";
+import ProgramObjectives from "./pages/ProgramObjectives";
+import Research from "./pages/Research";
 
 const aboutTexts = {
   BTECH: "About BTech program...",
@@ -48,6 +50,8 @@ const App = () => {
           <Route path="/brochures" element={<Brochures />} />
           <Route path="/curriculum" element={<CurriculumDev />} />
           <Route path="/program" element={<ProgramPage aboutTexts={aboutTexts} />} />
+          <Route path="/program-objectives" element={<ProgramObjectives />} />
+          <Route path="/research" element={<Research />} />
           <Route path="/teaching-and-learning" element={
             <ErrorBoundary>
               <TeachingAndLearning />
