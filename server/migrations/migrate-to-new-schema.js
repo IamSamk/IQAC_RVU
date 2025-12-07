@@ -22,62 +22,73 @@ async function migrateToNewSchema() {
 
     const courseMap = new Map(); // courseCode_year -> Course document
     const coursesToCreate = [];
+    const originalToValidCodeMap = new Map(); // GENERAL_2025 -> GENE001_2025
 
     for (const task of tasks) {
       if (!task.courseCode || !task.courseName) continue;
 
       // Extract year from deadline or use current year
       const year = task.deadline ? task.deadline.getFullYear().toString() : new Date().getFullYear().toString();
-      const courseKey = `${task.courseCode}_${year}`;
+      const originalKey = `${task.courseCode}_${year}`;
 
-      if (!courseMap.has(courseKey)) {
-        // Check if course already exists
-        const existingCourse = await Course.findOne({ courseCode: task.courseCode, year });
+      if (!courseMap.has(originalKey)) {
+        // Validate and fix courseCode format (must match /^[A-Z]{2,4}\d{3}$/)
+        let validCourseCode = task.courseCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        
+        // If courseCode doesn't match pattern, create a valid one
+        if (!/^[A-Z]{2,4}\d{3}$/.test(validCourseCode)) {
+          // Generate a valid courseCode
+          const codePrefix = validCourseCode.replace(/\d/g, '').slice(0, 4) || 'UNKN';
+          const codeNum = validCourseCode.match(/\d+/) || ['001'];
+          validCourseCode = `${codePrefix}${codeNum[0].padStart(3, '0').slice(-3)}`;
+        }
+        
+        // Check if course already exists with the valid code
+        const existingCourse = await Course.findOne({ courseCode: validCourseCode, year });
         
         if (existingCourse) {
-          courseMap.set(courseKey, existingCourse);
-          console.log(`   ℹ️  Course already exists: ${task.courseCode} (${year})`);
-        } else {
+          courseMap.set(originalKey, existingCourse);
+          originalToValidCodeMap.set(originalKey, `${validCourseCode}_${year}`);
+          console.log(`   ℹ️  Course already exists: ${validCourseCode} (${year})`);
           // Prepare new course
           const courseData = {
-            courseCode: task.courseCode,
+            courseCode: validCourseCode,
             courseName: task.courseName,
             year,
-            school: '', // Will be populated later if possible
-            programme: '', // Will be populated later if possible
-            semester: '',
+            school: 'Unknown', // Default value for migration
+            programme: 'Unknown', // Default value for migration
+            semester: 1, // Default semester number
             credits: 0,
             courseMembers: [],
             createdBy: task.assignedBy || null
           };
-          coursesToCreate.push(courseData);
-          console.log(`   ➕ Queued course: ${task.courseCode} - ${task.courseName} (${year})`);
+          coursesToCreate.push({ data: courseData, originalKey });
+          originalToValidCodeMap.set(originalKey, `${validCourseCode}_${year}`);
+          console.log(`   ➕ Queued course: ${validCourseCode} - ${task.courseName} (${year})`);
         }
       }
     }
 
-    // Create courses in bulk
+    // Create courses one by one
     if (coursesToCreate.length > 0) {
       let createdCount = 0;
-      for (const courseData of coursesToCreate) {
+      for (const item of coursesToCreate) {
         try {
-          const course = await Course.create(courseData);
-          const courseKey = `${course.courseCode}_${course.year}`;
-          courseMap.set(courseKey, course);
+          const course = await Course.create(item.data);
+          courseMap.set(item.originalKey, course);
           createdCount++;
         } catch (error) {
           if (error.code === 11000) {
             // Duplicate key - course already exists, fetch it
             const existing = await Course.findOne({ 
-              courseCode: courseData.courseCode, 
-              year: courseData.year 
+              courseCode: item.data.courseCode, 
+              year: item.data.year 
             });
             if (existing) {
-              const courseKey = `${existing.courseCode}_${existing.year}`;
-              courseMap.set(courseKey, existing);
+              courseMap.set(item.originalKey, existing);
             }
           } else {
-            console.log(`   ⚠️  Error creating course ${courseData.courseCode}: ${error.message}`);
+            console.log(`   ⚠️  Error creating course ${item.data.courseCode}: ${error.message}`);
           }
         }
       }
@@ -102,8 +113,8 @@ async function migrateToNewSchema() {
       if (!task.courseCode) continue;
 
       const year = task.deadline ? task.deadline.getFullYear().toString() : new Date().getFullYear().toString();
-      const courseKey = `${task.courseCode}_${year}`;
-      const course = courseMap.get(courseKey);
+      const originalKey = `${task.courseCode}_${year}`;
+      const course = courseMap.get(originalKey);
 
       if (!course) {
         console.log(`   ⚠️  Course not found for task: ${task.courseCode} (${year})`);
@@ -145,8 +156,8 @@ async function migrateToNewSchema() {
       if (!task.courseCode || task.courseRef) continue; // Skip if already has courseRef
 
       const year = task.deadline ? task.deadline.getFullYear().toString() : new Date().getFullYear().toString();
-      const courseKey = `${task.courseCode}_${year}`;
-      const course = courseMap.get(courseKey);
+      const originalKey = `${task.courseCode}_${year}`;
+      const course = courseMap.get(originalKey);
 
       if (course) {
         task.courseRef = course._id;
