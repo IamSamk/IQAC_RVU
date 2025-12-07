@@ -66,14 +66,27 @@ userSchema.virtual('displayName').get(function() {
 });
 
 // Method to update assigned courses (called when Course.courseMembers changes)
-userSchema.methods.syncAssignedCourses = async function(courses) {
-  this.assignedCourses = courses.map(c => ({
-    courseId: `${c.year}_${c.courseCode}`,
-    courseName: c.courseName,
-    courseRef: c._id,
-    role: c.memberRole,
-    assignedAt: c.assignedAt || new Date()
-  }));
+userSchema.methods.syncAssignedCourses = async function() {
+  const Course = require('./Course');
+  
+  // Find all courses where this user is a member
+  const courses = await Course.find({ 'courseMembers.userId': this._id });
+  
+  this.assignedCourses = courses.map(course => {
+    // Find this user's role in the course
+    const member = course.courseMembers.find(m => 
+      m.userId.toString() === this._id.toString()
+    );
+    
+    return {
+      courseId: `${course.year}_${course.courseCode}`,
+      courseName: course.courseName,
+      courseRef: course._id,
+      role: member ? member.role : 'unknown',
+      assignedAt: member ? member.assignedAt : new Date()
+    };
+  });
+  
   return this.save();
 };
 

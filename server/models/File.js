@@ -116,13 +116,7 @@ fileSchema.virtual('academicPath').get(function() {
   return parts.join(' → ');
 });
 
-// Virtual for file type
-fileSchema.virtual('fileType').get(function() {
-  if (this.metadata.category === 'assignment') return 'Assignment';
-  if (this.metadata.category === 'curriculum') return 'Curriculum';
-  if (this.metadata.category === 'syllabus') return 'Syllabus';
-  return 'General';
-});
+// Note: fileType is now a real field in the schema, not a virtual
 
 // Method to generate fileID from metadata (UPDATED: includes version)
 fileSchema.methods.generateFileID = function() {
