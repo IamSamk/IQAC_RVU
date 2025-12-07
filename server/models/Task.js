@@ -4,9 +4,15 @@ const taskSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
   
-  // Course context (for organization, not access control)
-  courseCode: { type: String, required: true }, // e.g., "CS101"
-  courseName: { type: String, required: true }, // e.g., "DSCA"
+  // Course reference (NEW: course-centric architecture)
+  courseRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
+  
+  // Additional courses (for assignments spanning multiple courses)
+  additionalCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+  
+  // Template information
+  isPredefined: { type: Boolean, default: false }, // Created from predefined template?
+  assignmentType: { type: String }, // Template name (e.g., "Front Sheet", "Syllabus & Lesson Plan")
   
   // DIRECT USER ASSIGNMENT (Support Multiple Users!)
   assignedToInitiators: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Multiple initiators
@@ -14,6 +20,8 @@ const taskSchema = new mongoose.Schema({
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Admin who assigned
   
   // Backward compatibility fields (deprecated but maintained for existing data)
+  courseCode: { type: String }, // Legacy field
+  courseName: { type: String }, // Legacy field
   assignedToInitiator: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedToReviewer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   
@@ -34,7 +42,22 @@ const taskSchema = new mongoose.Schema({
     ], 
     default: 'assigned' 
   },
-  fileId: { type: mongoose.Schema.Types.ObjectId }, // Associated file
+  
+  // File tracking (NEW: support multiple initiator submissions)
+  submissions: [{
+    initiatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    fileId: { type: mongoose.Schema.Types.ObjectId, ref: 'File' },
+    submittedAt: { type: Date, default: Date.now },
+    version: { type: Number, default: 1 }
+  }],
+  
+  // Merged file (created by reviewer)
+  mergedFileId: { type: mongoose.Schema.Types.ObjectId, ref: 'File' },
+  mergedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  mergedAt: { type: Date },
+  
+  // Legacy single file reference (backward compatibility)
+  fileId: { type: mongoose.Schema.Types.ObjectId }, // Associated file (deprecated)
   reviewComments: [{ 
     comment: String,
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -156,9 +179,20 @@ taskSchema.methods.canUserPerformAction = function(userId, action, userRole) {
   }
 };
 
-// Static method to find tasks by course (for admin overview) - Enhanced
-taskSchema.statics.findByCourse = function(courseCode) {
-  return this.find({ courseCode }).populate('assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy');
+// Static method to find tasks by course (NEW: uses courseRef)
+taskSchema.statics.findByCourse = function(courseIdOrCode) {
+  // Support both ObjectId (new) and courseCode string (legacy)
+  if (mongoose.Types.ObjectId.isValid(courseIdOrCode)) {
+    return this.find({ 
+      $or: [
+        { courseRef: courseIdOrCode },
+        { additionalCourses: courseIdOrCode }
+      ]
+    }).populate('courseRef additionalCourses assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy');
+  } else {
+    // Legacy courseCode search
+    return this.find({ courseCode: courseIdOrCode }).populate('assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy');
+  }
 };
 
 // Helper methods for managing multiple assignments
@@ -186,6 +220,76 @@ taskSchema.methods.removeReviewer = function(userId) {
   if (this.assignedToReviewers) {
     this.assignedToReviewers = this.assignedToReviewers.filter(id => id.toString() !== userId.toString());
   }
+};
+
+// Submission management methods (NEW)
+taskSchema.methods.addSubmission = function(initiatorId, fileId) {
+  if (!this.submissions) this.submissions = [];
+  
+  // Check if initiator already submitted
+  const existingIndex = this.submissions.findIndex(s => 
+    s.initiatorId.toString() === initiatorId.toString()
+  );
+  
+  if (existingIndex >= 0) {
+    // Update existing submission with new version
+    this.submissions[existingIndex].fileId = fileId;
+    this.submissions[existingIndex].submittedAt = new Date();
+    this.submissions[existingIndex].version += 1;
+  } else {
+    // New submission
+    this.submissions.push({
+      initiatorId,
+      fileId,
+      submittedAt: new Date(),
+      version: 1
+    });
+  }
+  
+  // Update task status
+  if (this.status === 'assigned') {
+    this.status = 'file-uploaded';
+    this.submittedAt = new Date();
+  }
+};
+
+taskSchema.methods.getSubmission = function(initiatorId) {
+  if (!this.submissions || this.submissions.length === 0) return null;
+  return this.submissions.find(s => s.initiatorId.toString() === initiatorId.toString());
+};
+
+taskSchema.methods.hasInitiatorSubmitted = function(initiatorId) {
+  return this.getSubmission(initiatorId) !== null;
+};
+
+taskSchema.methods.allInitiatorsSubmitted = function() {
+  const allInitiators = this.getAllInitiators();
+  if (allInitiators.length === 0) return false;
+  
+  return allInitiators.every(initiatorId => 
+    this.hasInitiatorSubmitted(initiatorId)
+  );
+};
+
+taskSchema.methods.setMergedFile = function(fileId, userId) {
+  this.mergedFileId = fileId;
+  this.mergedBy = userId;
+  this.mergedAt = new Date();
+  
+  // Update status to in-review if not already
+  if (this.status === 'file-uploaded') {
+    this.status = 'in-review';
+  }
+};
+
+// Get all courses associated with this task (primary + additional)
+taskSchema.methods.getAllCourses = function() {
+  const courses = [];
+  if (this.courseRef) courses.push(this.courseRef);
+  if (this.additionalCourses && this.additionalCourses.length > 0) {
+    courses.push(...this.additionalCourses);
+  }
+  return courses;
 };
 
 // Helper method to get all initiators (including legacy)

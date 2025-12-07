@@ -7,12 +7,28 @@ const fileSchema = new mongoose.Schema({
   contentType: { type: String, required: true },
   size: { type: Number, required: true },
   
-  // Unique file identifier in format: year_coursecode_docname
+  // Unique file identifier in format: year_coursecode_docname_vVersion
   fileID: { type: String, unique: true, sparse: true },
+  
+  // File type classification (NEW)
+  fileType: { 
+    type: String, 
+    enum: ['assignment', 'curriculum', 'general'],
+    default: 'general'
+  },
+  
+  // Relationships (NEW: course-centric)
+  courseRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+  taskRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
+  
+  // Merge tracking (NEW: for reviewer merged files)
+  isMerged: { type: Boolean, default: false },
+  originalFiles: [{ type: mongoose.Schema.Types.ObjectId, ref: 'File' }], // Source files for merged PDF
+  mergedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   
   // Unified metadata - covers all file types
   metadata: {
-    // File categorization
+    // File categorization (DEPRECATED: use fileType instead)
     category: { 
       type: String, 
       enum: ['curriculum', 'assignment', 'general', 'syllabus', 'course-document'],
@@ -24,13 +40,13 @@ const fileSchema = new mongoose.Schema({
     year: { type: String },      // 2023, 2024, etc.
     batch: { type: String },     // 1st year, 2nd year, etc.
     semester: { type: String },  // 1st semester, 2nd semester, etc.
-    courseCode: { type: String }, // CS101, CS102, etc.
-    courseName: { type: String }, // DSCA, Data Structures, etc.
+    courseCode: { type: String }, // CS101, CS102, etc. (DEPRECATED: use courseRef)
+    courseName: { type: String }, // DSCA, Data Structures, etc. (DEPRECATED)
     docLevel: { type: String },   // course, programme, department, etc.
     docType: { type: String },    // Course Analysis, Syllabus, etc.
     docNumber: { type: Number },  // For multiple documents of same type
     
-    // Assignment specific (if applicable)
+    // Assignment specific (DEPRECATED: use taskRef instead)
     assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
     uploaderEmail: { type: String },
     reviewerEmail: { type: String },
@@ -44,7 +60,7 @@ const fileSchema = new mongoose.Schema({
       default: 'pending'
     },
     
-    // Upload information
+    // Upload information (uploadedBy can be null for system-generated merged files)
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     uploadedAt: { type: Date, default: Date.now },
     
@@ -81,6 +97,10 @@ fileSchema.index({ 'metadata.status': 1 });
 fileSchema.index({ 'metadata.uploadedAt': -1 });
 fileSchema.index({ filename: 1 }); // Index for filename searches
 fileSchema.index({ fileID: 1 }); // Index for fileID searches
+fileSchema.index({ fileType: 1 }); // NEW: Index for file type
+fileSchema.index({ courseRef: 1 }); // NEW: Index for course reference
+fileSchema.index({ taskRef: 1 }); // NEW: Index for task reference
+fileSchema.index({ isMerged: 1 }); // NEW: Index for merged files
 
 // Virtual for full academic path
 fileSchema.virtual('academicPath').get(function() {
@@ -104,7 +124,7 @@ fileSchema.virtual('fileType').get(function() {
   return 'General';
 });
 
-// Method to generate fileID from metadata
+// Method to generate fileID from metadata (UPDATED: includes version)
 fileSchema.methods.generateFileID = function() {
   const meta = this.metadata;
   const parts = [];
@@ -119,15 +139,19 @@ fileSchema.methods.generateFileID = function() {
     parts.push(meta.courseCode.replace(/\s+/g, '').toUpperCase());
   }
   
-  // Add document name/type if available
+  // Add document type/assignment type if available
   if (meta.docType) {
     parts.push(meta.docType.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, ''));
   } else if (meta.docLevel) {
     parts.push(meta.docLevel.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, ''));
   }
   
-  // If we have at least 2 parts, create the fileID
-  if (parts.length >= 2) {
+  // Add version number
+  const version = meta.version || 1;
+  parts.push(`v${version}`);
+  
+  // If we have at least 3 parts (year, courseCode, docType), create the fileID
+  if (parts.length >= 3) {
     return parts.join('_');
   }
   
@@ -222,6 +246,34 @@ fileSchema.statics.findByFormattedFilename = function(searchPattern) {
   }
   
   return this.find(query).sort({ 'metadata.uploadedAt': -1 });
+};
+
+// NEW: Find files by course (using courseRef)
+fileSchema.statics.findByCourse = function(courseId) {
+  return this.find({ courseRef: courseId })
+    .populate('courseRef taskRef metadata.uploadedBy')
+    .sort({ 'metadata.uploadedAt': -1 });
+};
+
+// NEW: Find files by task
+fileSchema.statics.findByTask = function(taskId) {
+  return this.find({ taskRef: taskId })
+    .populate('courseRef taskRef metadata.uploadedBy')
+    .sort({ 'metadata.uploadedAt': -1 });
+};
+
+// NEW: Find merged files
+fileSchema.statics.findMergedFiles = function() {
+  return this.find({ isMerged: true })
+    .populate('originalFiles mergedBy courseRef taskRef')
+    .sort({ createdAt: -1 });
+};
+
+// NEW: Find files by type
+fileSchema.statics.findByType = function(fileType) {
+  return this.find({ fileType })
+    .populate('courseRef taskRef metadata.uploadedBy')
+    .sort({ 'metadata.uploadedAt': -1 });
 };
 
 // Include virtuals when converting to JSON
