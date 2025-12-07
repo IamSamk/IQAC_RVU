@@ -73,19 +73,13 @@ const documentSchema = new mongoose.Schema({
 });
 
 const courseSchema = new mongoose.Schema({
-  // Master identifier: year_courseCode (e.g., 2022_CS101)
-  courseId: {
-    type: String,
-    required: true,
-    unique: true,
-    match: /^\d{4}_[A-Z]{2,4}\d{3}$/ // Format: YYYY_CCNNN
-  },
-  
   // Course details
   courseCode: {
     type: String,
     required: true,
-    match: /^[A-Z]{2,4}\d{3}$/ // Format: CCNNN (e.g., CS101)
+    match: /^[A-Z]{2,4}\d{3}$/,  // Format: CCNNN (e.g., CS101, BCA201)
+    trim: true,
+    uppercase: true
   },
   
   courseName: {
@@ -97,42 +91,7 @@ const courseSchema = new mongoose.Schema({
   year: {
     type: String,
     required: true,
-    match: /^\d{4}$/ // Format: YYYY
-  },
-  
-  // LTP Configuration (Lecture-Tutorial-Practical)
-  ltp: {
-    lecture: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    tutorial: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    practical: {
-      type: Number,
-      required: true,
-      min: 0
-    }
-  },
-  
-  // Examination pattern (e.g., "70_30" for 70% external, 30% internal)
-  examPattern: {
-    type: String,
-    required: true,
-    match: /^\d{2}_\d{2}$/ // Format: NN_NN
-  },
-  
-  // All documents for this course
-  documents: [documentSchema],
-  
-  // Course metadata
-  department: {
-    type: String,
-    required: true
+    match: /^\d{4}$/  // Format: YYYY
   },
   
   semester: {
@@ -142,22 +101,74 @@ const courseSchema = new mongoose.Schema({
     max: 8
   },
   
+  // University hierarchy
+  school: {
+    type: String,
+    required: true,
+    trim: true,
+    index: true
+    // e.g., "SoCSE", "School of Management", "SoM"
+  },
+  
+  programme: {
+    type: String,
+    required: true,
+    trim: true,
+    index: true
+    // e.g., "BTech", "BCA", "BSc", "MTech"
+  },
+  
+  // LTP Configuration (Lecture-Tutorial-Practical)
+  ltp: {
+    lecture: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    tutorial: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    practical: {
+      type: Number,
+      default: 0,
+      min: 0
+    }
+  },
+  
   credits: {
     type: Number,
     required: true,
     min: 0
   },
   
-  // Course coordinators and faculty
-  courseCoordinator: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  // Examination pattern (e.g., "70_30" for 70% external, 30% internal)
+  examPattern: {
+    type: String,
+    match: /^\d{2}_\d{2}$/  // Format: NN_NN
   },
   
-  faculty: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  // Course membership with roles (CENTRAL TO NEW SYSTEM)
+  courseMembers: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['initiator', 'reviewer', 'both'],
+      required: true
+    },
+    assignedAt: {
+      type: Date,
+      default: Date.now
+    }
   }],
+  
+  // All documents for this course (legacy, keep for compatibility)
+  documents: [documentSchema],
   
   isActive: {
     type: Boolean,
@@ -167,10 +178,23 @@ const courseSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for efficient querying (courseId unique already creates index)
-courseSchema.index({ courseCode: 1, year: 1 });
-courseSchema.index({ year: 1 });
-courseSchema.index({ department: 1 });
+// REMOVED FIELDS (deprecated):
+// - courseId: Now generated dynamically as `${year}_${courseCode}` (not stored)
+// - department: Renamed to 'school'
+// - courseCoordinator: Redundant with courseMembers
+// - faculty: Redundant with courseMembers
+// - assignmentTemplates: Moved to separate OTHERS collection
+
+// Indexes for efficient querying
+courseSchema.index({ courseCode: 1, year: 1 }, { unique: true });
+courseSchema.index({ school: 1 });
+courseSchema.index({ programme: 1 });
+courseSchema.index({ 'courseMembers.userId': 1 });
+
+// Virtual field: Generate courseId dynamically
+courseSchema.virtual('courseId').get(function() {
+  return `${this.year}_${this.courseCode}`;
+});
 
 // Static method to generate courseId
 courseSchema.statics.generateCourseId = function(year, courseCode) {
@@ -183,36 +207,86 @@ courseSchema.statics.parseCourseId = function(courseId) {
   return { year, courseCode };
 };
 
-// Method to get all documents by type
+// Static method to find course by courseId (year_courseCode)
+courseSchema.statics.findByCourseId = function(courseId) {
+  const { year, courseCode } = this.parseCourseId(courseId);
+  return this.findOne({ year, courseCode });
+};
+
+// Method to get all initiators
+courseSchema.methods.getInitiators = function() {
+  return this.courseMembers
+    .filter(m => m.role === 'initiator' || m.role === 'both')
+    .map(m => m.userId);
+};
+
+// Method to get all reviewers
+courseSchema.methods.getReviewers = function() {
+  return this.courseMembers
+    .filter(m => m.role === 'reviewer' || m.role === 'both')
+    .map(m => m.userId);
+};
+
+// Method to add course member
+courseSchema.methods.addMember = function(userId, role) {
+  // Check if user already exists
+  const existing = this.courseMembers.find(m => m.userId.toString() === userId.toString());
+  
+  if (existing) {
+    existing.role = role;
+    existing.assignedAt = new Date();
+  } else {
+    this.courseMembers.push({ userId, role });
+  }
+  
+  return this.save();
+};
+
+// Method to remove course member
+courseSchema.methods.removeMember = function(userId) {
+  this.courseMembers = this.courseMembers.filter(
+    m => m.userId.toString() !== userId.toString()
+  );
+  return this.save();
+};
+
+// Method to update member role
+courseSchema.methods.updateMemberRole = function(userId, newRole) {
+  const member = this.courseMembers.find(m => m.userId.toString() === userId.toString());
+  
+  if (!member) {
+    throw new Error('User is not a member of this course');
+  }
+  
+  member.role = newRole;
+  member.assignedAt = new Date();
+  
+  return this.save();
+};
+
+// Method to check if user is a member
+courseSchema.methods.isMember = function(userId) {
+  return this.courseMembers.some(m => m.userId.toString() === userId.toString());
+};
+
+// Method to get user's role in this course
+courseSchema.methods.getMemberRole = function(userId) {
+  const member = this.courseMembers.find(m => m.userId.toString() === userId.toString());
+  return member ? member.role : null;
+};
+
+// Method to get all documents by type (legacy)
 courseSchema.methods.getDocumentsByType = function(type) {
   return this.documents.filter(doc => doc.type === type);
 };
 
-// Method to get approved documents only
+// Method to get approved documents only (legacy)
 courseSchema.methods.getApprovedDocuments = function() {
   return this.documents.filter(doc => doc.status === 'approved');
 };
 
-// Method to add document
-courseSchema.methods.addDocument = function(documentData) {
-  this.documents.push(documentData);
-  return this.save();
-};
-
-// Method to update document status
-courseSchema.methods.updateDocumentStatus = function(documentId, status, reviewData = null) {
-  const document = this.documents.id(documentId);
-  if (document) {
-    document.status = status;
-    if (reviewData) {
-      document.reviews.push(reviewData);
-    }
-    if (status === 'approved') {
-      document.approvedAt = new Date();
-    }
-    return this.save();
-  }
-  throw new Error('Document not found');
-};
+// Include virtuals when converting to JSON
+courseSchema.set('toJSON', { virtuals: true });
+courseSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Course', courseSchema);

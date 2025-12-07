@@ -1,57 +1,98 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  firstName: { type: String },
-  lastName: { type: String },
+  username: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true,
+    index: true
+  },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true,
+    lowercase: true,
+    index: true
+  },
+  password: { 
+    type: String, 
+    required: true 
+  },
+  
   role: { 
     type: String, 
     enum: ['admin', 'user', 'viewer'], 
-    default: 'viewer' 
-  },
-  subrole: {
-    type: String,
-    enum: ['initiator', 'reviewer', 'both', 'none'],
-    default: 'none'
+    default: 'viewer',
+    index: true
   },
   
-  // SIMPLIFIED: Course IDs for admin reference only (not for access control)
-  courseIds: [{ 
-    type: String  // e.g., ["CS101", "CS201", "EC301"] - just for tracking
+  // School/Department (SoCSE, School of Management, etc.)
+  school: { 
+    type: String,
+    trim: true,
+    index: true
+  },
+  
+  // Denormalized course assignments for quick lookup
+  // Auto-populated from Course.courseMembers
+  assignedCourses: [{
+    courseId: { type: String },      // "2024_CS101"
+    courseName: { type: String },    // "Data Structures"
+    courseRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+    role: { 
+      type: String, 
+      enum: ['initiator', 'reviewer', 'both']
+    },
+    assignedAt: { type: Date, default: Date.now }
   }],
   
-  department: { type: String }, // For organizing users
   isActive: { type: Boolean, default: true },
   isPasswordSet: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   lastLogin: { type: Date, default: Date.now }
 });
 
-// Virtual for full name
-userSchema.virtual('name').get(function() {
-  return `${this.firstName || ''} ${this.lastName || ''}`.trim() || this.username || this.email;
+// REMOVED FIELDS (deprecated):
+// - firstName, lastName: Unnecessary, use username or email
+// - subrole: Moved to Course.courseMembers (per-course roles)
+// - courseIds: Replaced by assignedCourses (denormalized)
+// - department: Renamed to 'school'
+
+// Virtual for display name
+userSchema.virtual('displayName').get(function() {
+  return this.username || this.email.split('@')[0];
 });
 
-// Method to add course ID for tracking
-userSchema.methods.addCourseId = function(courseId) {
-  if (!this.courseIds.includes(courseId)) {
-    this.courseIds.push(courseId);
-    return this.save();
-  }
-  return Promise.resolve(this);
-};
-
-// Method to remove course ID
-userSchema.methods.removeCourseId = function(courseId) {
-  this.courseIds = this.courseIds.filter(id => id !== courseId);
+// Method to update assigned courses (called when Course.courseMembers changes)
+userSchema.methods.syncAssignedCourses = async function(courses) {
+  this.assignedCourses = courses.map(c => ({
+    courseId: `${c.year}_${c.courseCode}`,
+    courseName: c.courseName,
+    courseRef: c._id,
+    role: c.memberRole,
+    assignedAt: c.assignedAt || new Date()
+  }));
   return this.save();
 };
 
-// Static method to find users by course (for admin reference)
-userSchema.statics.findByCourse = function(courseId) {
-  return this.find({ courseIds: courseId, isActive: true });
+// Static method to find users by school
+userSchema.statics.findBySchool = function(school) {
+  return this.find({ school, isActive: true });
+};
+
+// Static method to find users by role
+userSchema.statics.findByRole = function(role) {
+  return this.find({ role, isActive: true });
+};
+
+// Static method to find users assigned to a course
+userSchema.statics.findByCourse = function(courseRef) {
+  return this.find({ 
+    'assignedCourses.courseRef': courseRef,
+    isActive: true 
+  });
 };
 
 // Include virtuals when converting to JSON
