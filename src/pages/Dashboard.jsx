@@ -51,8 +51,24 @@ export default function Dashboard() {
     navigate("/curriculum");
   };
 
+  const handleMissionClick = () => {
+    window.open("/pdfs/rvu-mission-vision.pdf", "_blank", "noopener,noreferrer");
+  };
+
+  const handleProgramOutcomesClick = () => {
+    window.open("/pdfs/programme-outcomes.pdf", "_blank", "noopener,noreferrer");
+  };
+
+  const handleProgramObjectivesClick = () => {
+    navigate("/program-objectives");
+  };
+
   const handleTeachingAndLearningClick = () => {
     navigate("/teaching-and-learning");
+  };
+
+  const handleResearchClick = () => {
+    navigate("/research");
   };
 
   const handleRoleManagementClick = () => {
@@ -72,7 +88,19 @@ export default function Dashboard() {
     <div className="dashboard">
       {/* Top Row */}
       <div className="dashboard-top-row">
-        <div className="dashboard-card">
+        <div
+          className="dashboard-card"
+          onClick={handleMissionClick}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              handleMissionClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer" }}
+        >
           <div className="dashboard-image-placeholder mission-placeholder">
             <div className="placeholder-content">
               <div className="placeholder-icon mission-icon">🎯</div>
@@ -80,7 +108,19 @@ export default function Dashboard() {
           </div>
           <div className="dashboard-card-title">Socse Mission and Vision</div>
         </div>
-        <div className="dashboard-card">
+        <div
+          className="dashboard-card"
+          onClick={handleProgramOutcomesClick}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              handleProgramOutcomesClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer" }}
+        >
           <div className="dashboard-image-placeholder">
             <div className="placeholder-content">
               <div className="placeholder-icon">📚</div>
@@ -90,7 +130,19 @@ export default function Dashboard() {
           </div>
           <div className="dashboard-card-title">Program Outcomes</div>
         </div>
-        <div className="dashboard-card">
+        <div
+          className="dashboard-card"
+          onClick={handleProgramObjectivesClick}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              handleProgramObjectivesClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer" }}
+        >
           <div className="dashboard-image-placeholder">
             <div className="placeholder-content">
               <div className="placeholder-icon">🎓</div>
@@ -172,8 +224,15 @@ export default function Dashboard() {
           key={criteria[2]}
           className="dashboard-card criteria-animated-btn"
           tabIndex={0}
-          onClick={undefined}
-          style={{ cursor: "default" }}
+          onClick={handleResearchClick}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              handleResearchClick();
+            }
+          }}
+          role="button"
+          style={{ cursor: "pointer" }}
         >
           <div className="dashboard-image-placeholder">
             <div className="placeholder-content">
