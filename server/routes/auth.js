@@ -70,7 +70,7 @@ const generateToken = (userId) => {
 
 // Register route
 router.post('/register', async (req, res) => {
-  const { username, email, password, firstName, lastName, role, courseCode, courseName } = req.body;
+  const { username, email, password, role, school } = req.body;
   try {
     // Check if user already exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -86,11 +86,8 @@ router.post('/register', async (req, res) => {
       username,
       email,
       password: hashedPassword, // Store hashed password
-      firstName,
-      lastName,
       role: role || 'user', // Use provided role or default to 'user'
-      courseCode: courseCode || '',
-      courseName: courseName || '',
+      school: school || '',
       isActive: true,
       createdAt: new Date(),
       lastLogin: new Date()
@@ -103,11 +100,8 @@ router.post('/register', async (req, res) => {
         _id: user._id,
         username: user.username,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
         role: user.role,
-        courseCode: user.courseCode,
-        courseName: user.courseName
+        school: user.school
       }
     });
   } catch (err) {
@@ -153,13 +147,10 @@ router.post('/login', async (req, res) => {
         _id: user._id,
         username: user.username,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        name: user.firstName + ' ' + user.lastName,
+        displayName: user.displayName, // Uses virtual from User model
         role: user.role,
-        subrole: user.subrole,
-        courseCode: user.courseCode,
-        courseName: user.courseName,
+        school: user.school,
+        assignedCourses: user.assignedCourses || [],
         lastLogin: user.lastLogin
       }
     });
@@ -186,8 +177,11 @@ router.get('/profile/:id', async (req, res) => {
 // Update user profile
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { firstName, lastName, email } = req.body;
-    const updateData = { firstName, lastName, email };
+    const { username, email, school } = req.body;
+    const updateData = {};
+    if (username) updateData.username = username;
+    if (email) updateData.email = email;
+    if (school) updateData.school = school;
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
@@ -220,7 +214,7 @@ router.get('/users', authenticateToken, async (req, res) => {
 // Create admin user (development only)
 router.post('/create-admin', async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName } = req.body;
+    const { username, email, password, school } = req.body;
     
     // Check if user already exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -234,8 +228,7 @@ router.post('/create-admin', async (req, res) => {
       username,
       email,
       password: hashedPassword,
-      firstName,
-      lastName,
+      school: school || '',
       role: 'admin',
       isActive: true,
       createdAt: new Date(),
@@ -249,8 +242,7 @@ router.post('/create-admin', async (req, res) => {
         _id: admin._id,
         username: admin.username,
         email: admin.email,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
+        school: admin.school,
         role: admin.role
       }
     });
@@ -321,19 +313,19 @@ router.patch('/users/:id', authenticateToken, async (req, res) => {
 // Protected route to verify token and get user data
 router.get('/verify', authenticateToken, async (req, res) => {
   try {
+    // Get fresh user data with populated courses
+    const user = await User.findById(req.user._id).select('-password');
+    
     res.json({
       user: {
-        _id: req.user._id,
-        username: req.user.username,
-        email: req.user.email,
-        firstName: req.user.firstName,
-        lastName: req.user.lastName,
-        name: req.user.firstName + ' ' + req.user.lastName,
-        role: req.user.role,
-        subrole: req.user.subrole,
-        courseCode: req.user.courseCode,
-        courseName: req.user.courseName,
-        lastLogin: req.user.lastLogin
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        school: user.school,
+        assignedCourses: user.assignedCourses || [],
+        lastLogin: user.lastLogin
       }
     });
   } catch (error) {

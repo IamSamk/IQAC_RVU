@@ -90,6 +90,8 @@ const unifiedFileRoutes = require('./routes/unifiedFiles');
 const taskRoutes = require('./routes/tasks');
 const notificationRoutes = require('./routes/notifications');
 const reviewDocumentRoutes = require('./routes/reviewDocuments');
+const courseRoutes = require('./routes/courses'); // NEW: Course management
+const assignmentTemplateRoutes = require('./routes/assignmentTemplates'); // NEW: Template management
 
 app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes); // Keep old routes for backward compatibility
@@ -97,6 +99,8 @@ app.use('/api/unified-files', unifiedFileRoutes); // New unified file system
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/review-documents', reviewDocumentRoutes);
+app.use('/api/courses', courseRoutes); // NEW: Course CRUD and member management
+app.use('/api/assignment-templates', assignmentTemplateRoutes); // NEW: Template CRUD
 
 // Error handling middleware
 app.use((err, req, res, next) => {

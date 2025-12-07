@@ -2,13 +2,117 @@ const express = require('express');
 const Task = require('../models/Task');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const Course = require('../models/Course');
+const AssignmentTemplate = require('../models/AssignmentTemplate');
 const { authenticateToken } = require('./auth');
 const router = express.Router();
 
 // Apply authentication to all routes
 router.use(authenticateToken);
 
-// Create a new task (Admin only)
+// Create a new task from template (Admin only) - NEW WORKFLOW
+router.post('/create-from-template', async (req, res) => {
+  try {
+    // Check admin permission
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can create tasks' });
+    }
+    
+    const { 
+      courseId, 
+      additionalCourseIds, 
+      templateId, 
+      title, 
+      description, 
+      deadline,
+      initiatorIds,
+      reviewerIds
+    } = req.body;
+    
+    // Validate required fields
+    if (!courseId || !templateId || !deadline) {
+      return res.status(400).json({ error: 'Missing required fields: courseId, templateId, deadline' });
+    }
+    
+    // Verify course exists
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+    
+    // Verify template exists
+    const template = await AssignmentTemplate.findById(templateId);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    // Validate additional courses if provided
+    let additionalCourses = [];
+    if (additionalCourseIds && additionalCourseIds.length > 0) {
+      additionalCourses = await Course.find({ _id: { $in: additionalCourseIds } });
+      if (additionalCourses.length !== additionalCourseIds.length) {
+        return res.status(404).json({ error: 'One or more additional courses not found' });
+      }
+    }
+    
+    // If no initiators/reviewers specified, use course members
+    let assignedInitiators = initiatorIds || [];
+    let assignedReviewers = reviewerIds || [];
+    
+    if (assignedInitiators.length === 0) {
+      assignedInitiators = course.getInitiators();
+    }
+    if (assignedReviewers.length === 0) {
+      assignedReviewers = course.getReviewers();
+    }
+    
+    if (assignedInitiators.length === 0 || assignedReviewers.length === 0) {
+      return res.status(400).json({ error: 'Course must have at least one initiator and one reviewer' });
+    }
+    
+    // Create the task
+    const task = new Task({
+      title: title || template.templateName,
+      description: description || template.description,
+      courseRef: courseId,
+      additionalCourses: additionalCourseIds || [],
+      isPredefined: true,
+      assignmentType: template.templateName,
+      assignedToInitiators: assignedInitiators,
+      assignedToReviewers: assignedReviewers,
+      assignedBy: req.user._id,
+      deadline: new Date(deadline),
+      status: 'assigned'
+    });
+    
+    await task.save();
+    
+    // Create notifications for all initiators
+    for (const initiatorId of assignedInitiators) {
+      const notification = new Notification({
+        userId: initiatorId,
+        type: 'task_assigned',
+        title: 'New Assignment Created',
+        message: `You have been assigned: ${task.title}`,
+        taskId: task._id
+      });
+      await notification.save();
+    }
+    
+    // Populate for response
+    await task.populate('courseRef assignedToInitiators assignedToReviewers assignedBy');
+    
+    res.status(201).json({ 
+      message: 'Assignment created successfully',
+      task
+    });
+  } catch (error) {
+    console.error('Task creation error:', error);
+    res.status(500).json({ error: 'Failed to create task', details: error.message });
+  }
+});
+
+// Create a legacy task (backward compatibility)
 router.post('/create', async (req, res) => {
   try {
     const { title, description, category, docNumber, assignedTo, deadline, assignedBy } = req.body;
@@ -92,11 +196,15 @@ router.get('/:taskId', async (req, res) => {
     const userRole = req.user.role;
     
     const task = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'firstName lastName email username')
-      .populate('assignedToReviewers', 'firstName lastName email username')
-      .populate('assignedToInitiator', 'firstName lastName email username')
-      .populate('assignedToReviewer', 'firstName lastName email username')
-      .populate('assignedBy', 'firstName lastName email username');
+      .populate('courseRef', 'courseCode courseName school programme year')
+      .populate('additionalCourses', 'courseCode courseName')
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school')
+      .populate('assignedBy', 'username email')
+      .populate('submissions.initiatorId', 'username email')
+      .populate('mergedBy', 'username email');
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -116,6 +224,104 @@ router.get('/:taskId', async (req, res) => {
 
 // Upload file for task (SIMPLE PERMISSION CHECK)
 router.post('/:taskId/upload', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { fileId } = req.body;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+    
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    // Check if user can upload (only initiator or admin)
+    if (!task.canUserPerformAction(userId, 'upload', userRole)) {
+      return res.status(403).json({ error: 'Only assigned initiators can upload files' });
+    }
+    
+    // Add submission using new method
+    task.addSubmission(userId, fileId);
+    
+    // Initialize reviewer approvals if this is the first submission
+    if (task.status === 'file-uploaded' && task.submissions.length === 1) {
+      task.initializeReviewerApprovals();
+    }
+    
+    await task.save();
+    
+    // Notify reviewers if all initiators have submitted
+    if (task.allInitiatorsSubmitted()) {
+      const reviewers = task.getAllReviewers();
+      for (const reviewerId of reviewers) {
+        const notification = new Notification({
+          userId: reviewerId,
+          type: 'file_submitted',
+          title: 'All Files Submitted',
+          message: `All initiators have submitted files for: ${task.title}`,
+          taskId: task._id
+        });
+        await notification.save();
+      }
+    }
+    
+    res.json({ message: 'File uploaded successfully', task });
+  } catch (error) {
+    console.error('Upload file error:', error);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+});
+
+// NEW: Merge files endpoint (Reviewer only)
+router.post('/:taskId/merge', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { mergedFileId } = req.body;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+    
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    // Check if user can review (only reviewer or admin)
+    if (!task.canUserPerformAction(userId, 'review', userRole) && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Only assigned reviewers can merge files' });
+    }
+    
+    // Verify all initiators have submitted
+    if (!task.allInitiatorsSubmitted()) {
+      return res.status(400).json({ error: 'All initiators must submit before merging' });
+    }
+    
+    // Set merged file
+    task.setMergedFile(mergedFileId, userId);
+    
+    await task.save();
+    
+    // Notify initiators that merge is complete
+    const initiators = task.getAllInitiators();
+    for (const initiatorId of initiators) {
+      const notification = new Notification({
+        userId: initiatorId,
+        type: 'files_merged',
+        title: 'Files Merged',
+        message: `Your submissions for "${task.title}" have been merged by a reviewer`,
+        taskId: task._id
+      });
+      await notification.save();
+    }
+    
+    res.json({ message: 'Files merged successfully', task });
+  } catch (error) {
+    console.error('Merge files error:', error);
+    res.status(500).json({ error: 'Failed to merge files' });
+  }
+});
+
+// Legacy upload file for task (backward compatibility)
+router.post('/:taskId/upload-legacy', async (req, res) => {
   try {
     const { taskId } = req.params;
     const { fileId } = req.body;
@@ -163,7 +369,7 @@ router.put('/:taskId/submit', async (req, res) => {
         submittedAt: new Date()
       },
       { new: true }
-    ).populate('assignedToReviewer', 'firstName lastName email');
+    ).populate('assignedToReviewer', 'username email school');
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -205,10 +411,11 @@ router.put('/:taskId/reviewer-approve', async (req, res) => {
     console.log('Reviewer approve:', { taskId, reviewerId, comment });
     
     const task = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName');
+      .populate('courseRef', 'courseCode courseName')
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school');
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -284,11 +491,11 @@ router.put('/:taskId/reviewer-approve', async (req, res) => {
     }
     
     const populatedTask = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName')
-      .populate('reviewerApprovals.reviewerId', 'username email firstName lastName');
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school')
+      .populate('reviewerApprovals.reviewerId', 'username email school');
     
     res.json({ 
       message: 'Document approved successfully',
@@ -310,10 +517,11 @@ router.put('/:taskId/reviewer-reject', async (req, res) => {
     console.log('Reviewer reject:', { taskId, reviewerId, comment });
     
     const task = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName');
+      .populate('courseRef', 'courseCode courseName')
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school');
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -355,11 +563,11 @@ router.put('/:taskId/reviewer-reject', async (req, res) => {
     }
     
     const populatedTask = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName')
-      .populate('reviewerApprovals.reviewerId', 'username email firstName lastName');
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school')
+      .populate('reviewerApprovals.reviewerId', 'username email school');
     
     res.json({ 
       message: 'Document rejected successfully',
@@ -381,10 +589,11 @@ router.put('/:taskId/approve', async (req, res) => {
     console.log('Admin approve request:', { taskId, adminId, comment });
     
     const task = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName');
+      .populate('courseRef', 'courseCode courseName')
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school');
     
     if (!task) {
       console.log('Task not found:', taskId);
@@ -486,7 +695,7 @@ router.put('/:taskId/reject', async (req, res) => {
         rejectionReason: rejectionReason
       },
       { new: true }
-    ).populate('assignedToInitiator', 'firstName lastName email');
+    ).populate('assignedToInitiator', 'username email school');
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -523,8 +732,8 @@ router.get('/category/:category', async (req, res) => {
     if (status) query.status = status;
     
     const tasks = await Task.find(query)
-      .populate('assignedTo', 'firstName lastName email')
-      .populate('assignedBy', 'firstName lastName email')
+      .populate('assignedTo', 'username email school')
+      .populate('assignedBy', 'username email school')
       .sort({ createdAt: -1 });
     
     res.json(tasks);
@@ -587,12 +796,12 @@ router.get('/', async (req, res) => {
       console.log('GET /api/tasks - Admin user, filter:', filter);
       // Admin sees all tasks (with optional filters)
       tasks = await Task.find(filter)
-        .populate('assignedToInitiators', 'username email firstName lastName')
-        .populate('assignedToReviewers', 'username email firstName lastName')
-        .populate('assignedToInitiator', 'username email firstName lastName')
-        .populate('assignedToReviewer', 'username email firstName lastName')
-        .populate('assignedBy', 'username email firstName lastName')
-        .populate('reviewerApprovals.reviewerId', 'username email firstName lastName')
+        .populate('assignedToInitiators', 'username email school')
+        .populate('assignedToReviewers', 'username email school')
+        .populate('assignedToInitiator', 'username email school')
+        .populate('assignedToReviewer', 'username email school')
+        .populate('assignedBy', 'username email school')
+        .populate('reviewerApprovals.reviewerId', 'username email school')
         .sort({ createdAt: -1 });
     } else {
       // Users see only their assigned tasks (with optional filters)
@@ -612,12 +821,12 @@ router.get('/', async (req, res) => {
       console.log('GET /api/tasks - Regular user, filter:', combinedFilter);
       
       tasks = await Task.find(combinedFilter)
-        .populate('assignedToInitiators', 'username email firstName lastName')
-        .populate('assignedToReviewers', 'username email firstName lastName')
-        .populate('assignedToInitiator', 'username email firstName lastName')
-        .populate('assignedToReviewer', 'username email firstName lastName')
-        .populate('assignedBy', 'username email firstName lastName')
-        .populate('reviewerApprovals.reviewerId', 'username email firstName lastName')
+        .populate('assignedToInitiators', 'username email school')
+        .populate('assignedToReviewers', 'username email school')
+        .populate('assignedToInitiator', 'username email school')
+        .populate('assignedToReviewer', 'username email school')
+        .populate('assignedBy', 'username email school')
+        .populate('reviewerApprovals.reviewerId', 'username email school')
         .sort({ createdAt: -1 });
     }
     
@@ -725,11 +934,11 @@ router.post('/', async (req, res) => {
     }
     
     const populatedTask = await Task.findById(task._id)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName')
-      .populate('assignedBy', 'username email firstName lastName');
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school')
+      .populate('assignedBy', 'username email school');
     
     res.status(201).json({ 
       message: 'Task created successfully',
@@ -768,11 +977,11 @@ router.put('/:id', async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     )
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName')
-      .populate('assignedBy', 'username email firstName lastName');
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school')
+      .populate('assignedBy', 'username email school');
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -841,11 +1050,11 @@ router.put('/:taskId/assignments', async (req, res) => {
     }
     
     const updatedTask = await Task.findById(taskId)
-      .populate('assignedToInitiators', 'username email firstName lastName')
-      .populate('assignedToReviewers', 'username email firstName lastName')
-      .populate('assignedToInitiator', 'username email firstName lastName')
-      .populate('assignedToReviewer', 'username email firstName lastName')
-      .populate('assignedBy', 'username email firstName lastName');
+      .populate('assignedToInitiators', 'username email school')
+      .populate('assignedToReviewers', 'username email school')
+      .populate('assignedToInitiator', 'username email school')
+      .populate('assignedToReviewer', 'username email school')
+      .populate('assignedBy', 'username email school');
     
     res.json({
       message: `Users ${action}ed successfully`,
@@ -858,3 +1067,5 @@ router.put('/:taskId/assignments', async (req, res) => {
 });
 
 module.exports = router;
+
+
