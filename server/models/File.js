@@ -86,7 +86,7 @@ const fileSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true }
 }, {
   timestamps: true,
-  collection: 'master_files'
+  collection: 'files'  // Use 'files' collection for metadata, not GridFS
 });
 
 // Indexes for efficient querying

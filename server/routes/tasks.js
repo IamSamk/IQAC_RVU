@@ -445,7 +445,7 @@ router.get('/:taskId/merged-file/download', async (req, res) => {
     // Stream file from GridFS
     const db = mongoose.connection.db;
     const bucket = new mongoose.mongo.GridFSBucket(db, {
-      bucketName: 'master_files'
+      bucketName: 'master-files'
     });
     
     const downloadStream = bucket.openDownloadStream(task.mergedFileId.metadata.gridfsId);
