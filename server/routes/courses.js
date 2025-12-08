@@ -19,14 +19,14 @@ router.get('/', async (req, res) => {
     if (year) query.year = year;
     
     const courses = await Course.find(query)
-      .populate('courseMembers.userId', 'username email school')
-      .populate('createdBy', 'username email')
       .sort({ year: -1, courseCode: 1 });
     
-    res.json(courses);
+    // Return in format expected by frontend
+    res.json({ courses });
   } catch (error) {
-    console.error('Get courses error:', error);
-    res.status(500).json({ error: 'Failed to fetch courses' });
+    console.error('❌ Get courses error:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch courses', details: error.message });
   }
 });
 

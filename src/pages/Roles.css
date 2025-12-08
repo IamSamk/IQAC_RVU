@@ -353,6 +353,69 @@
   font-size: 0.85rem;
 }
 
+/* Courses Table Styles */
+.courses-table-wrapper {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.courses-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #1a2f38;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.courses-table thead {
+  background: #182E37;
+  border-bottom: 2px solid #D5AB5D;
+}
+
+.courses-table th {
+  padding: 1rem;
+  text-align: left;
+  color: #D5AB5D;
+  font-weight: bold;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.courses-table tbody tr {
+  border-bottom: 1px solid rgba(213, 171, 93, 0.2);
+  transition: background-color 0.2s;
+}
+
+.courses-table tbody tr:hover {
+  background: rgba(213, 171, 93, 0.1);
+}
+
+.courses-table td {
+  padding: 1rem;
+  color: #fff;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+  padding: 0.25rem;
+}
+
+.action-btn:hover {
+  transform: scale(1.2);
+}
+
+.delete-btn {
+  filter: grayscale(0.5);
+}
+
+.delete-btn:hover {
+  filter: grayscale(0);
+}
+
 @media (max-width: 768px) {
   .roles-container {
     padding: 1rem;
@@ -372,3 +435,129 @@
     font-size: 0.9rem;
   }
 }
+
+/* Others tab styles */
+.others-section {
+  margin-bottom: 2rem;
+}
+
+.others-section h3 {
+  color: #D5AB5D;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.others-section h4 {
+  color: #D5AB5D;
+  margin-top: 1.5rem;
+  margin-bottom: 0.8rem;
+  font-size: 1.2rem;
+}
+
+.custom-templates-list {
+  margin-top: 2rem;
+}
+
+.form-note {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(213, 171, 93, 0.1);
+  border-left: 3px solid #D5AB5D;
+  border-radius: 4px;
+}
+
+.form-note p {
+  margin: 0;
+  color: #D5AB5D;
+  font-size: 0.9rem;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-primary {
+  background: #D5AB5D;
+  color: #182E37;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #c49a4d;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+  border-color: #bd2130;
+}
+
+input[type="file"] {
+  background: #182E37;
+  color: #fff;
+  padding: 0.5rem;
+  border: 1px solid #D5AB5D;
+  border-radius: 4px;
+  width: 100%;
+}
+
+input[type="file"]::file-selector-button {
+  background: #D5AB5D;
+  color: #182E37;
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  margin-right: 1rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: #c49a4d;
+}
+
+/* Multi-select option styling */
+select[multiple] {
+  background: #182E37;
+  color: #fff;
+  border: 1px solid #D5AB5D;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+select[multiple] option {
+  background: #223b47;
+  color: #fff;
+  padding: 0.5rem;
+  border-bottom: 1px solid #334a57;
+  margin-bottom: 2px;
+}
+
+select[multiple] option:hover,
+select[multiple] option:focus {
+  background: #2a4752;
+  color: #D5AB5D;
+}
+
+select[multiple] option:checked {
+  background: #D5AB5D;
+  color: #182E37;
+  font-weight: bold;
+}
+

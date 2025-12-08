@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 import { AuthContext } from "../context/AuthContext";
+import { API_BASE_URL } from "../config/api";
 
 const criteria = [
   "Curriculum ",
@@ -15,9 +16,10 @@ const criteria = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user: contextUser } = useContext(AuthContext);
+  const { user: contextUser, getToken } = useContext(AuthContext);
   const [userRole, setUserRole] = useState('viewer');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [banners, setBanners] = useState([]);
 
   // Get user role from AuthContext or localStorage
   useEffect(() => {
@@ -47,16 +49,55 @@ export default function Dashboard() {
     }
   }, [contextUser]);
 
+  // Fetch banners from MongoDB
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        const token = getToken ? getToken() : localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/api/banners/list`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setBanners(data.banners || []);
+        }
+      } catch (error) {
+        console.error('Error fetching banners:', error);
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchBanners();
+    }
+  }, [isAuthenticated, getToken]);
+
   const handleCurriculumClick = () => {
     navigate("/curriculum");
   };
 
   const handleMissionClick = () => {
-    window.open("/pdfs/rvu-mission-vision.pdf", "_blank", "noopener,noreferrer");
+    // Use first banner from MongoDB if available, else fallback to static
+    if (banners.length > 0) {
+      const token = getToken ? getToken() : localStorage.getItem('token');
+      window.open(`${API_BASE_URL}/api/banners/${banners[0]._id}`, "_blank", "noopener,noreferrer");
+    } else {
+      window.open("/pdfs/rvu-mission-vision.pdf", "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleProgramOutcomesClick = () => {
-    window.open("/pdfs/programme-outcomes.pdf", "_blank", "noopener,noreferrer");
+    // Use second banner from MongoDB if available, else fallback to static
+    if (banners.length > 1) {
+      const token = getToken ? getToken() : localStorage.getItem('token');
+      window.open(`${API_BASE_URL}/api/banners/${banners[1]._id}`, "_blank", "noopener,noreferrer");
+    } else {
+      window.open("/pdfs/programme-outcomes.pdf", "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleProgramObjectivesClick = () => {

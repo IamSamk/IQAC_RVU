@@ -77,7 +77,6 @@ const courseSchema = new mongoose.Schema({
   courseCode: {
     type: String,
     required: true,
-    match: /^[A-Z]{2,4}\d{3}$/,  // Format: CCNNN (e.g., CS101, BCA201)
     trim: true,
     uppercase: true
   },
@@ -90,8 +89,7 @@ const courseSchema = new mongoose.Schema({
   
   year: {
     type: String,
-    required: true,
-    match: /^\d{4}$/  // Format: YYYY
+    required: true
   },
   
   semester: {
@@ -145,8 +143,7 @@ const courseSchema = new mongoose.Schema({
   
   // Examination pattern (e.g., "70_30" for 70% external, 30% internal)
   examPattern: {
-    type: String,
-    match: /^\d{2}_\d{2}$/  // Format: NN_NN
+    type: String
   },
   
   // Course membership with roles (CENTRAL TO NEW SYSTEM)

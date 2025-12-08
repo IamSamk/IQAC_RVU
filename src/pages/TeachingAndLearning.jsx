@@ -129,7 +129,7 @@ const TeachingAndLearning = () => {
         // Extract unique courses for filtering (admin only)
         if (userRole === 'admin' || userRole === 'super_admin' || currentUser?.role === 'super_admin') {
           const courses = [...new Set((documents || [])
-            .map(doc => doc.courseCode)
+            .map(doc => doc.courseRef?.courseCode || doc.courseCode)
             .filter(code => code && code.trim())
           )];
           setAvailableCourses(courses);
@@ -653,7 +653,7 @@ const TeachingAndLearning = () => {
 
       // Get documents to merge (filtered if courseFilter is set)
       const documentsToMerge = documents
-        .filter(doc => !courseFilter || doc.courseCode === courseFilter)
+        .filter(doc => !courseFilter || (doc.courseRef?.courseCode || doc.courseCode) === courseFilter)
         .filter(doc => doc.fileId); // Only documents with files
 
       if (documentsToMerge.length === 0) {
@@ -664,8 +664,8 @@ const TeachingAndLearning = () => {
       const token = getToken();
       const pdfUrls = documentsToMerge.map(doc => ({
         url: `${API_BASE_URL}/api/files/${doc.fileId}/download?token=${token}`,
-        title: `${doc.courseCode} - ${doc.courseName}`,
-        courseCode: doc.courseCode
+        title: `${doc.courseRef?.courseCode || doc.courseCode} - ${doc.courseRef?.courseName || doc.courseName}`,
+        courseCode: doc.courseRef?.courseCode || doc.courseCode
       }));
 
       // Merge PDFs
@@ -704,7 +704,7 @@ const TeachingAndLearning = () => {
 
   const getDocumentsToMergeCount = () => {
     return documents
-      .filter(doc => !courseFilter || doc.courseCode === courseFilter)
+      .filter(doc => !courseFilter || (doc.courseRef?.courseCode || doc.courseCode) === courseFilter)
       .filter(doc => doc.fileId).length;
   };
 
@@ -773,7 +773,7 @@ const TeachingAndLearning = () => {
               {assignments.map((assignment) => (
                 <div key={assignment._id} className="assignment-card">
                   <div className="assignment-header">
-                    <h3>{assignment.courseCode}</h3>
+                    <h3>{assignment.courseRef?.courseCode || assignment.courseCode || 'N/A'}</h3>
                     <div className="header-actions">
                       <span 
                         className="status-badge" 
@@ -785,7 +785,7 @@ const TeachingAndLearning = () => {
                   </div>
                   
                   <div className="assignment-details">
-                    <h4>{assignment.courseName}</h4>
+                    <h4>{assignment.courseRef?.courseName || assignment.courseName || assignment.title}</h4>
                     <p className="assignment-description">{assignment.description}</p>
                     
                     <div className="assignment-roles">
@@ -1194,18 +1194,18 @@ const TeachingAndLearning = () => {
               </div>
             ) : (
               documents
-                .filter(doc => !courseFilter || doc.courseCode === courseFilter)
+                .filter(doc => !courseFilter || (doc.courseRef?.courseCode || doc.courseCode) === courseFilter)
                 .map(doc => (
                   <div key={doc._id} className="document-card">
                     <div className="document-header">
-                      <h3>{doc.courseCode}</h3>
+                      <h3>{doc.courseRef?.courseCode || doc.courseCode || 'N/A'}</h3>
                       <span className="completion-date">
                         {new Date(doc.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
                     
                     <div className="document-details">
-                      <h4>{doc.courseName || doc.title || 'Course Document'}</h4>
+                      <h4>{doc.courseRef?.courseName || doc.courseName || doc.title || 'Course Document'}</h4>
                       <p className="document-description">{doc.description}</p>
                       
                       <div className="document-roles">

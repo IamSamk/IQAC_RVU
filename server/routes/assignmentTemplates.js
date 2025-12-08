@@ -3,7 +3,131 @@ const AssignmentTemplate = require('../models/AssignmentTemplate');
 const { authenticateToken } = require('./auth');
 const router = express.Router();
 
-// Apply authentication to all routes
+// Download route BEFORE authentication middleware (handles auth itself via query param)
+router.get('/:templateId/download', async (req, res) => {
+  try {
+    // Allow token from query param for window.open() requests OR from Authorization header
+    let token = req.headers.authorization?.split(' ')[1];
+    if (!token && req.query.token) {
+      token = req.query.token;
+    }
+    
+    console.log('🔑 Download request - Token present:', !!token);
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+    
+    // Verify token manually since we're bypassing middleware
+    const jwt = require('jsonwebtoken');
+    const User = require('../models/User');
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+    
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const user = await User.findById(decoded.userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      req.user = user;
+      console.log('✅ User authenticated:', user.email);
+    } catch (err) {
+      console.error('❌ Token verification failed:', err.message);
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    
+    const path = require('path');
+    const fs = require('fs');
+    
+    const template = await AssignmentTemplate.findById(req.params.templateId);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    // Map template names to actual file paths
+    const templateFilesDir = path.join(__dirname, '../..', 'SoCSE Course File Templates-20251108T075249Z-1-001', 'SoCSE Course File Templates');
+    
+    // Template name to file mapping (based on ACTUAL database template names)
+    const fileMapping = {
+      // Root Level
+      '00_Front Sheet': '000_Front Sheet.docx',
+      '01_Index Sheet': '00_New  Index Sheet.docx',
+      '02_Syllabus & Lesson Plan': '02_03_2025-26 New  Template for Syllabus_Lesson Plan.docx',
+      '03_Class Timetable': '04_Sample Class TT.docx',
+      '04_Students List': '05_Students List Format.docx',
+      '05_Grade Book': '06_Sample Grade Book .xlsx',
+      '06_Course Exit Survey Analysis': '091_Course Exit Survey Analysis.docx',
+      '07_Minutes of Meeting': '10_MIN 6 MOM_About Course Design_CIE1_CIE2_CIE3_RETEST_NE LIST_SEE QP.docx',
+      '08_Individual Faculty Timetable': 'Individual  TT.docx',
+      
+      // CIE/SEE Exams folder
+      '09_CIE-1 Question Paper': '6a_8_CIE_CIE2_SEE exam and Marks/CIE_QP_Format.pdf',
+      '10_CIE-1 Answer Scheme': '6a_8_CIE_CIE2_SEE exam and Marks/CIE_Answer Scheme.pdf',
+      '11_CIE-1 Consolidated Marks': '6a_8_CIE_CIE2_SEE exam and Marks/Consolidated Marks of CIE1.docx',
+      '12_CIE-2 Question Paper': '6a_8_CIE_CIE2_SEE exam and Marks/CIE 2_QP_Format.pdf',
+      '13_CIE-2 Consolidated Marks': '6a_8_CIE_CIE2_SEE exam and Marks/Consolidated Marks of CIE2.docx',
+      '14_CIE-3 Consolidated Marks': '6a_8_CIE_CIE2_SEE exam and Marks/Consolidated Marks of CIE3.docx',
+      '15_CIE Consolidated Marks (All)': '6a_8_CIE_CIE2_SEE exam and Marks/CIE Consolidated Marks.docx',
+      '16_List of Slow Learners': '6a_8_CIE_CIE2_SEE exam and Marks/List of Slow Learners .docx',
+      '17_SEE Question Paper': '6a_8_CIE_CIE2_SEE exam and Marks/SEE_QP_Format.pdf',
+      
+      // Remedial folder
+      '18_Remedial Timetable': '6b_Remedial Folder/BTech_ Remedial Time Table.xlsx',
+      '19_Remedial Student List': '6b_Remedial Folder/Student List Remedial Class.xlsx',
+      '20_Remedial Attendance': '6b_Remedial Folder/Attendance  Student List Remedial Class.xlsx',
+      '21_Remedial Topics Taught': '6b_Remedial Folder/Topics Taught.docx',
+      '22_Improvement Marks Analysis': '6b_Remedial Folder/Improvement Marks Analysis.xlsx'
+    };
+    
+    const fileName = fileMapping[template.templateName];
+    if (!fileName) {
+      return res.status(404).json({ error: 'Template file not found', templateName: template.templateName });
+    }
+    
+    const filePath = path.join(templateFilesDir, fileName);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ File not found:', filePath);
+      return res.status(404).json({ error: 'Template file does not exist on server' });
+    }
+    
+    // Get file extension
+    const ext = path.extname(fileName).toLowerCase();
+    let contentType;
+    
+    if (ext === '.pdf') {
+      contentType = 'application/pdf';
+    } else if (ext === '.xlsx') {
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else if (ext === '.docx') {
+      contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    } else {
+      contentType = 'application/octet-stream';
+    }
+    
+    // Set headers
+    res.setHeader('Content-Type', contentType);
+    
+    // PDFs can be viewed inline in browser, DOCX/XLSX will download
+    if (req.query.inline === 'true' && ext === '.pdf') {
+      res.setHeader('Content-Disposition', `inline; filename="${template.templateName}${ext}"`);
+    } else {
+      res.setHeader('Content-Disposition', `attachment; filename="${template.templateName}${ext}"`);
+    }
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
+    console.log('📥 Serving template file:', template.templateName, '→', fileName);
+  } catch (error) {
+    console.error('❌ Download template error:', error);
+    res.status(500).json({ error: 'Failed to download template' });
+  }
+});
+
+// Apply authentication to all OTHER routes
 router.use(authenticateToken);
 
 // Get all templates (with optional filters)
@@ -38,7 +162,8 @@ router.get('/', async (req, res) => {
       );
     }
     
-    res.json(templates);
+    // Return in format expected by frontend
+    res.json({ templates });
   } catch (error) {
     console.error('Get templates error:', error);
     res.status(500).json({ error: 'Failed to fetch templates' });

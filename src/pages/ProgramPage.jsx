@@ -386,8 +386,8 @@ const ProgramPage = ({ aboutTexts }) => {
       <div className="program-sidebar" style={{ flex: 1, maxWidth: 320 }}>
         {/* 1st box: Syllabus (with dropdowns and actions and extra document dropdown) */}
         <NestedDropdown label="Syllabus" docType={true} onSelect={handleDropdownSelect} role={role} showDocDropdown={true} />
-        {/* 2nd box: Curriculum Development (only year dropdown) */}
-        <NestedDropdown label="Curriculum Development" docType={false} onSelect={handleDropdownSelect} role={role} hideBatch={true} />
+        {/* 2nd box: Program Structure (only year dropdown) */}
+        <NestedDropdown label="Program Structure" docType={false} onSelect={handleDropdownSelect} role={role} hideBatch={true} />
         {/* 3rd box: Course Documents (step-by-step dropdowns/inputs) */}
         <CourseDocumentsSidebar onSelect={handleDropdownSelect} role={role} />
       </div>
@@ -396,7 +396,7 @@ const ProgramPage = ({ aboutTexts }) => {
       {/* Main Content */}
       <div className="program-main-content" style={{ flex: 3, display: "flex", flexDirection: "column", gap: 32 }}>
         <h2 className="curriculum-dev-main-heading" style={{ textAlign: "left", marginTop: 0 }}>
-          Curriculum Development - {programName}
+          Program Structure - {programName}
         </h2>
         {mainView === "about" && (
           <div className="program-about-card curriculum-dev-about-section">

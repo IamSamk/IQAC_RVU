@@ -947,12 +947,13 @@ router.get('/', async (req, res) => {
       console.log('GET /api/tasks - Admin user, filter:', filter);
       // Admin sees all tasks (with optional filters)
       tasks = await Task.find(filter)
-        .populate('assignedToInitiators', 'username email school')
-        .populate('assignedToReviewers', 'username email school')
-        .populate('assignedToInitiator', 'username email school')
-        .populate('assignedToReviewer', 'username email school')
-        .populate('assignedBy', 'username email school')
-        .populate('reviewerApprovals.reviewerId', 'username email school')
+        .populate('courseRef', 'courseCode courseName school programme year semester')
+        .populate('assignedToInitiators', 'username email school firstName lastName')
+        .populate('assignedToReviewers', 'username email school firstName lastName')
+        .populate('assignedToInitiator', 'username email school firstName lastName')
+        .populate('assignedToReviewer', 'username email school firstName lastName')
+        .populate('assignedBy', 'username email school firstName lastName')
+        .populate('reviewerApprovals.reviewerId', 'username email school firstName lastName')
         .sort({ createdAt: -1 });
     } else {
       // Users see only their assigned tasks (with optional filters)
@@ -972,12 +973,13 @@ router.get('/', async (req, res) => {
       console.log('GET /api/tasks - Regular user, filter:', combinedFilter);
       
       tasks = await Task.find(combinedFilter)
-        .populate('assignedToInitiators', 'username email school')
-        .populate('assignedToReviewers', 'username email school')
-        .populate('assignedToInitiator', 'username email school')
-        .populate('assignedToReviewer', 'username email school')
-        .populate('assignedBy', 'username email school')
-        .populate('reviewerApprovals.reviewerId', 'username email school')
+        .populate('courseRef', 'courseCode courseName school programme year semester')
+        .populate('assignedToInitiators', 'username email school firstName lastName')
+        .populate('assignedToReviewers', 'username email school firstName lastName')
+        .populate('assignedToInitiator', 'username email school firstName lastName')
+        .populate('assignedToReviewer', 'username email school firstName lastName')
+        .populate('assignedBy', 'username email school firstName lastName')
+        .populate('reviewerApprovals.reviewerId', 'username email school firstName lastName')
         .sort({ createdAt: -1 });
     }
     
@@ -990,33 +992,98 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create a new task (enhanced for multiple users support)
+// Create a new task (enhanced for both old and new course-centric workflows)
 router.post('/', async (req, res) => {
   try {
     console.log('POST /api/tasks - Request body:', req.body);
     console.log('POST /api/tasks - User:', req.user);
     
     const {
+      // New course-centric format
+      courseId,
+      templateId,
+      // Old format (backward compatibility)
       title,
       description,
       courseCode,
       courseName,
       assignedToInitiator,
       assignedToReviewer,
-      assignedToInitiators, // New field for multiple initiators
-      assignedToReviewers,  // New field for multiple reviewers
+      assignedToInitiators,
+      assignedToReviewers,
       category,
-      assignmentType
+      assignmentType,
+      deadline
     } = req.body;
     
-    console.log('POST /api/tasks - Extracted data:', {
-      title, description, courseCode, courseName, 
-      assignedToInitiator, assignedToReviewer,
-      assignedToInitiators, assignedToReviewers,
-      category, assignmentType
-    });
+    // NEW COURSE-CENTRIC WORKFLOW
+    if (courseId && templateId) {
+      console.log('POST /api/tasks - Using new course-centric workflow');
+      
+      // Verify course exists
+      const course = await Course.findById(courseId);
+      if (!course) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+      
+      // Verify template exists
+      const template = await AssignmentTemplate.findById(templateId);
+      if (!template) {
+        return res.status(404).json({ error: 'Template not found' });
+      }
+      
+      // Get initiators and reviewers from course members
+      const initiators = course.getInitiators();
+      const reviewers = course.getReviewers();
+      
+      if (initiators.length === 0 || reviewers.length === 0) {
+        return res.status(400).json({ error: 'Course must have at least one initiator and one reviewer' });
+      }
+      
+      // Create the task
+      const task = new Task({
+        title: template.templateName,
+        description: template.description,
+        courseRef: courseId,
+        isPredefined: true,
+        assignmentType: template.templateName,
+        assignedToInitiators: initiators,
+        assignedToReviewers: reviewers,
+        assignedBy: req.user._id,
+        deadline: new Date(deadline),
+        status: 'assigned'
+      });
+      
+      await task.save();
+      
+      // Create notifications for all initiators
+      for (const initiatorId of initiators) {
+        const notification = new Notification({
+          userId: initiatorId,
+          type: 'task_assigned',
+          title: 'New Assignment Created',
+          message: `You have been assigned: ${task.title} for ${course.courseCode}`,
+          taskId: task._id
+        });
+        await notification.save();
+      }
+      
+      // Populate for response
+      const populatedTask = await Task.findById(task._id)
+        .populate('courseRef', 'courseCode courseName school programme year semester')
+        .populate('assignedToInitiators', 'username email school firstName lastName')
+        .populate('assignedToReviewers', 'username email school firstName lastName')
+        .populate('assignedBy', 'username email school firstName lastName');
+      
+      return res.status(201).json({ 
+        message: 'Assignment created successfully',
+        task: populatedTask
+      });
+    }
     
-    // Create the task with both single and multiple assignment support
+    // OLD WORKFLOW (backward compatibility)
+    console.log('POST /api/tasks - Using old workflow (backward compatibility)');
+    
     const taskData = {
       title: title || `${courseCode} ${assignmentType || 'Assignment'}`,
       description,
@@ -1024,7 +1091,7 @@ router.post('/', async (req, res) => {
       courseName,
       assignedBy: req.user._id,
       category: assignmentType || category || 'course-material',
-      deadline: new Date(req.body.deadline),
+      deadline: new Date(deadline),
       status: 'assigned'
     };
 
@@ -1085,11 +1152,12 @@ router.post('/', async (req, res) => {
     }
     
     const populatedTask = await Task.findById(task._id)
-      .populate('assignedToInitiators', 'username email school')
-      .populate('assignedToReviewers', 'username email school')
-      .populate('assignedToInitiator', 'username email school')
-      .populate('assignedToReviewer', 'username email school')
-      .populate('assignedBy', 'username email school');
+      .populate('courseRef', 'courseCode courseName school programme year semester')
+      .populate('assignedToInitiators', 'username email school firstName lastName')
+      .populate('assignedToReviewers', 'username email school firstName lastName')
+      .populate('assignedToInitiator', 'username email school firstName lastName')
+      .populate('assignedToReviewer', 'username email school firstName lastName')
+      .populate('assignedBy', 'username email school firstName lastName');
     
     res.status(201).json({ 
       message: 'Task created successfully',

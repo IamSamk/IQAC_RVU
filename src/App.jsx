@@ -20,6 +20,7 @@ import Roles from "./pages/Roles";
 import Brochures from "./pages/Brochures";
 import ProgramObjectives from "./pages/ProgramObjectives";
 import Research from "./pages/Research";
+import ManageCourses from "./pages/ManageCourses";
 
 const aboutTexts = {
   BTECH: "About BTech program...",
@@ -58,6 +59,7 @@ const App = () => {
             </ErrorBoundary>
           } />
           <Route path="/roles" element={<Roles />} />
+          <Route path="/courses" element={<ManageCourses />} />
         </Routes>
         {/* Notification Bell - only show for authenticated users */}
         {isAuthenticated && <NotificationBell />}
