@@ -8,7 +8,8 @@ const fileSchema = new mongoose.Schema({
   size: { type: Number, required: true },
   
   // Unique file identifier in format: year_coursecode_docname_vVersion
-  fileID: { type: String, unique: true, sparse: true },
+  // Note: sparse index allows multiple null values
+  fileID: { type: String, index: true, sparse: true },
   
   // File type classification (NEW)
   fileType: { 

@@ -272,15 +272,18 @@ router.post('/:taskId/upload', async (req, res) => {
   }
 });
 
-// NEW: Merge files endpoint (Reviewer only)
+// NEW: Merge files endpoint (Reviewer only) - AUTO-MERGE PDFs
 router.post('/:taskId/merge', async (req, res) => {
   try {
     const { taskId } = req.params;
-    const { mergedFileId } = req.body;
     const userId = req.user._id;
     const userRole = req.user.role;
     
-    const task = await Task.findById(taskId);
+    const fileMergeService = require('../services/fileMergeService');
+    const File = require('../models/File');
+    const Course = require('../models/Course');
+    
+    const task = await Task.findById(taskId).populate('courseRef');
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -295,9 +298,36 @@ router.post('/:taskId/merge', async (req, res) => {
       return res.status(400).json({ error: 'All initiators must submit before merging' });
     }
     
-    // Set merged file
-    task.setMergedFile(mergedFileId, userId);
+    // Check if already merged
+    if (task.mergedFileId) {
+      return res.status(400).json({ error: 'Files already merged', mergedFileId: task.mergedFileId });
+    }
     
+    // Get all submitted files
+    const fileIds = task.submissions.map(sub => sub.fileId).filter(id => id);
+    
+    if (fileIds.length === 0) {
+      return res.status(400).json({ error: 'No files submitted to merge' });
+    }
+    
+    console.log(`🔄 Merging ${fileIds.length} files for task: ${task.title}`);
+    
+    // Merge PDFs automatically
+    const mergedFile = await fileMergeService.mergeAndSave(
+      fileIds,
+      {
+        taskId: task._id,
+        courseId: task.courseRef?.courseId || 'UNKNOWN',
+        courseRef: task.courseRef?._id,
+        title: task.title
+      },
+      userId
+    );
+    
+    console.log(`✅ Merged file created: ${mergedFile._id}`);
+    
+    // Set merged file on task
+    task.setMergedFile(mergedFile._id, userId);
     await task.save();
     
     // Notify initiators that merge is complete
@@ -308,15 +338,136 @@ router.post('/:taskId/merge', async (req, res) => {
         type: 'files_merged',
         title: 'Files Merged',
         message: `Your submissions for "${task.title}" have been merged by a reviewer`,
-        taskId: task._id
+        taskId: task._id,
+        metadata: {
+          mergedFileId: mergedFile._id,
+          filename: mergedFile.filename
+        }
       });
       await notification.save();
     }
     
-    res.json({ message: 'Files merged successfully', task });
+    res.json({ 
+      message: 'Files merged successfully', 
+      task,
+      mergedFile: {
+        id: mergedFile._id,
+        filename: mergedFile.filename,
+        size: mergedFile.size,
+        totalPages: mergedFile.metadata?.totalPages,
+        originalFileCount: mergedFile.metadata?.originalFileCount
+      }
+    });
   } catch (error) {
     console.error('Merge files error:', error);
-    res.status(500).json({ error: 'Failed to merge files' });
+    res.status(500).json({ error: 'Failed to merge files', details: error.message });
+  }
+});
+
+// GET task submission status
+router.get('/:taskId/submissions', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+    
+    const task = await Task.findById(taskId)
+      .populate('submissions.userId', 'username email school')
+      .populate('submissions.fileId', 'filename size contentType createdAt')
+      .populate('mergedFileId', 'filename size contentType metadata createdAt')
+      .populate('mergedBy', 'username email school');
+    
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    // Check access (initiators, reviewers, or admin can view)
+    const canView = task.canUserPerformAction(userId, 'initiate', userRole) ||
+                    task.canUserPerformAction(userId, 'review', userRole) ||
+                    userRole === 'admin';
+    
+    if (!canView) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const initiators = task.getAllInitiators();
+    const submissionStatus = {
+      totalInitiators: initiators.length,
+      submitted: task.submissions.length,
+      pending: initiators.length - task.submissions.length,
+      allSubmitted: task.allInitiatorsSubmitted(),
+      isMerged: !!task.mergedFileId,
+      submissions: task.submissions,
+      mergedFile: task.mergedFileId ? {
+        id: task.mergedFileId._id,
+        filename: task.mergedFileId.filename,
+        size: task.mergedFileId.size,
+        totalPages: task.mergedFileId.metadata?.totalPages,
+        originalFileCount: task.mergedFileId.metadata?.originalFileCount,
+        mergedBy: task.mergedBy,
+        mergedAt: task.mergedAt
+      } : null
+    };
+    
+    res.json(submissionStatus);
+  } catch (error) {
+    console.error('Get submissions error:', error);
+    res.status(500).json({ error: 'Failed to get submissions' });
+  }
+});
+
+// Download merged file
+router.get('/:taskId/merged-file/download', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user._id;
+    const userRole = req.user.role;
+    
+    const task = await Task.findById(taskId).populate('mergedFileId');
+    
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    if (!task.mergedFileId) {
+      return res.status(404).json({ error: 'No merged file available' });
+    }
+    
+    // Check access
+    const canDownload = task.canUserPerformAction(userId, 'initiate', userRole) ||
+                        task.canUserPerformAction(userId, 'review', userRole) ||
+                        userRole === 'admin';
+    
+    if (!canDownload) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Stream file from GridFS
+    const db = mongoose.connection.db;
+    const bucket = new mongoose.mongo.GridFSBucket(db, {
+      bucketName: 'master_files'
+    });
+    
+    const downloadStream = bucket.openDownloadStream(task.mergedFileId.metadata.gridfsId);
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${task.mergedFileId.filename}"`,
+      'Content-Length': task.mergedFileId.size
+    });
+    
+    downloadStream.pipe(res);
+    
+    downloadStream.on('error', (error) => {
+      console.error('Download error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to download file' });
+      }
+    });
+    
+  } catch (error) {
+    console.error('Download merged file error:', error);
+    res.status(500).json({ error: 'Failed to download merged file' });
   }
 });
 
