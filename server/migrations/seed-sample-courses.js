@@ -79,21 +79,32 @@ async function seedSampleCourses() {
 
     // Create courses
     let createdCount = 0;
+    let skippedCount = 0;
+    
     for (const courseData of sampleCourses) {
       try {
+        // Check if exists first
+        const existing = await Course.findOne({ 
+          courseCode: courseData.courseCode, 
+          year: courseData.year 
+        });
+        
+        if (existing) {
+          console.log(`   ℹ️  Already exists: ${courseData.courseCode} (${courseData.year})`);
+          skippedCount++;
+          continue;
+        }
+        
         const course = await Course.create(courseData);
-        console.log(`   ✅ Created: ${course.courseCode} - ${course.courseName}`);
+        console.log(`   ✅ Created: ${course.courseCode} - ${course.courseName} (${course.year})`);
         createdCount++;
       } catch (error) {
-        if (error.code === 11000) {
-          console.log(`   ℹ️  Already exists: ${courseData.courseCode}`);
-        } else {
-          console.log(`   ⚠️  Error creating ${courseData.courseCode}: ${error.message}`);
-        }
+        console.log(`   ⚠️  Error creating ${courseData.courseCode}: ${error.message}`);
       }
     }
 
-    console.log(`\n✅ Created ${createdCount} sample courses\n`);
+    console.log(`\n✅ Created ${createdCount} new courses`);
+    console.log(`   ℹ️  Skipped ${skippedCount} existing courses\n`);
 
     // Verify
     const totalCourses = await Course.countDocuments();
