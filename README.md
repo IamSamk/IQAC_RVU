@@ -4,57 +4,72 @@ A comprehensive web application for the Internal Quality Assurance Cell (IQAC) a
 
 ## 🚀 **PRODUCTION-READY SYSTEM STATUS**
 
-**Latest Update: August 12, 2025** - Final cleanup completed: legacy GridFS buckets & migration scripts removed; documentation aligned.
+**Latest Update: December 8, 2025** - Template system integrated, database cleanup completed, course-centric workflow finalized.
 
-✅ **System Architecture**: Simplified Direct Assignment (tested and validated)  
-✅ **Database**: MongoDB Atlas with core active collections (legacy file buckets removed)  
-✅ **File Storage**: GridFS with single unified `master-files` bucket (all legacy buckets deleted)  
+✅ **System Architecture**: Course-centric assignment workflow with template system  
+✅ **Database**: MongoDB Atlas with optimized collections (test collections removed)  
+✅ **File Storage**: GridFS with unified `master-files` bucket (hyphen format)  
 ✅ **Authentication**: Tab-independent JWT with role-based access control  
-✅ **Documentation**: Comprehensive DATABASE_README.md with full technical details  
+✅ **Templates**: 23 NAAC templates organized in 3 folders (Root, CIE/SEE Exams, Remedial)  
+✅ **Documentation**: Complete technical documentation and database schema  
 ✅ **Environment**: Production MongoDB credentials and configuration ready  
-✅ **Testing**: All components validated with test scripts  
-✅ **Cleanup**: Legacy buckets deleted (no residual backups retained in DB)  
+✅ **Frontend**: Template download/view system, admin panel with assignments  
+✅ **Cleanup**: All test and temporary files removed, database optimized  
 
 ### **Key Features**
 
-- ✅ **Enhanced Multiple User Assignment**: Admins can assign multiple initiators and reviewers to same task
-- ✅ **Direct Task Assignment**: No complex intermediate tables, blazing fast queries
-- ✅ **Unified File System**: Single `master-files` bucket with standardized naming  
-- ✅ **Team Collaboration**: Multiple users can collaborate on same assignments
-- ✅ **Backward Compatibility**: Existing single assignments continue to work seamlessly
-- ✅ **One-Line Access Control**: Millisecond permission validation for all assignment types
-- ✅ **Tab-Independent Auth**: Perfect for testing multiple user roles
-- ✅ **GridFS Storage**: Scalable document management with automatic chunking
-- ✅ **Real-Time Notifications**: Workflow-based user alerts and status updates
-- ✅ **Production Database**: MongoDB Atlas with optimized indexes and configuration
+- ✅ **Course-Centric Workflow**: Assignments organized by courses with initiators and reviewers
+- ✅ **Assignment Templates**: 23 predefined NAAC templates with automatic file mapping
+- ✅ **Template Management**: Browse, view (PDF), and download templates by category
+- ✅ **Direct Task Assignment**: Admins create assignments from templates for specific courses
+- ✅ **Unified File System**: Single `master-files` bucket with GridFS storage  
+- ✅ **User Management**: Create users without complex role hierarchies
+- ✅ **Tab-Independent Auth**: Session-based authentication for testing
+- ✅ **Real-Time Notifications**: Workflow-based alerts for assignments
+- ✅ **Banner Management**: Upload and display mission/vision PDFs (GridFS banners bucket)
+- ✅ **Production Database**: MongoDB Atlas with clean schema
 
 ### **System Architecture**
 
 ```
-🎯 ENHANCED ARCHITECTURE (Multiple Users Support)
+🎯 COURSE-CENTRIC ARCHITECTURE
 
-Users (15) ──multiple assignment──→ Tasks (19) ──linked──→ Files (GridFS)
-     ↓                                ↓                        ↓
-Role-based      Enhanced access     master-files bucket
-permissions     control check       (unified storage)
-     ↓                                ↓                        ↓
-Admin/User/     Arrays + Legacy     Active files & chunks in
-Viewer roles    support             single master-files bucket
-     ↓                                ↓                        ↓
-5 subroles      Multiple users      255KB auto-chunking
-(init/rev/      per task           with metadata tracking
-both/none)
+Courses ──has members──→ Users (Initiators/Reviewers)
+   ↓
+   └──linked to──→ Tasks (Assignments) ──created from──→ Templates (23 NAAC)
+                      ↓
+                   Files (GridFS master-files bucket)
+                      ↓
+                   Review workflow → Approved/Rejected
 ```
 
-### **Enhanced Access Control (Multiple Users Support)**
+### **Template System**
+```
+📁 Root Level (9 templates)
+   - Front Sheet, Index, Syllabus & Lesson Plan, Class Timetable,
+     Students List, Grade Book, Survey Analysis, Minutes of Meeting,
+     Individual Faculty Timetable
+
+📁 CIE/SEE Exams (9 templates)  
+   - CIE-1/2/3 Question Papers (PDF), Answer Schemes (PDF),
+     Consolidated Marks (DOCX), Slow Learners List, SEE Question Paper
+
+📁 Remedial (5 templates)
+   - Timetable (XLSX), Student List, Attendance, Topics Taught,
+     Improvement Analysis
+```
+
+### **Database Collections**
 ```javascript
-// Multiple users permission check (Enhanced)
-const canAccess = task.assignedToInitiators.includes(userId) || 
-                  task.assignedToReviewers.includes(userId) || 
-                  task.assignedToInitiator?.equals(userId) ||  // Legacy support
-                  task.assignedToReviewer?.equals(userId) ||   // Legacy support
-                  user.role === 'admin';
-// Result: <10ms query time with support for team collaboration
+Active Collections:
+- users (19 documents) - User accounts with roles
+- courses (5 documents) - Course definitions with members
+- tasks (7 documents) - Assignments linked to courses
+- others (23 documents) - Assignment templates
+- notifications (0 documents) - User notifications
+- files (0 documents) - File metadata
+- master-files.files (45 documents) - GridFS file metadata
+- master-files.chunks (408 documents) - GridFS file chunks
 ```
 
 ---
@@ -64,7 +79,8 @@ const canAccess = task.assignedToInitiators.includes(userId) ||
 - **Frontend**: React 18, Vite, CSS3, Context API
 - **Backend**: Node.js, Express.js, MongoDB, GridFS
 - **Authentication**: JWT with sessionStorage (tab-independent)
-- **File Storage**: MongoDB GridFS with unified bucket system
+- **File Storage**: MongoDB GridFS (master-files bucket)
+- **Templates**: File-based system with MongoDB metadata
 - **Deployment**: Production-ready with environment configuration
 
 ---
@@ -77,7 +93,7 @@ const canAccess = task.assignedToInitiators.includes(userId) ||
 
 ### **1. Clone Repository**
 ```bash
-git clone <repository-url>
+git clone https://github.com/Puneetha-S-Shankar/IQAC_RVU.git
 cd IQAC_RVU
 ```
 
@@ -93,11 +109,11 @@ npm install
 
 ### **3. Environment Configuration**
 
-Create `.env` file in `server/` directory with the following configuration:
+Create `.env` file in `server/` directory:
 
 ```env
-# MongoDB Connection (Replace with your actual credentials)
-MONGODB_URI=mongodb+srv://IamSamk:2gRB01wOhNhKIqvP@iqac.mlrfsfs.mongodb.net/IQAC?retryWrites=true&w=majority&appName=IQAC
+# MongoDB Connection
+MONGODB_URI=mongodb+srv://IamSamk:2gRB01wOhNhKIqvP@iqac.mlrfsfs.mongodb.net/IQAC
 
 # JWT Configuration
 JWT_SECRET=arbvviuareo23081413rwfWE
@@ -111,24 +127,40 @@ CORS_ORIGIN=http://localhost:5173
 
 ### **4. Database Setup**
 
-The system uses a **unified master database** with the following collections:
-- `users` - User accounts with direct course tracking (15 documents)
-- `tasks` - Direct task assignments (13 documents)
-- `notifications` - Workflow notifications (16 documents)
-- `test` - Development testing collection
+The system uses MongoDB Atlas with the following collections:
+- `users` - User accounts (19 documents)
+- `courses` - Course definitions with members (5 documents)
+- `tasks` - Assignment tasks (7 documents)
+- `others` - Assignment templates (23 documents)
+- `notifications` - Workflow notifications
+- `files` - File metadata
+- `master-files.files` - GridFS file metadata (45 documents)
+- `master-files.chunks` - GridFS file chunks (408 documents)
 
-**GridFS File Storage:** Single active `master-files` bucket (legacy `files` & `uploads` buckets fully removed on Aug 12, 2025).
+**GridFS File Storage:** Unified `master-files` bucket (hyphen format).
 
-📊 **For comprehensive database documentation with schemas and technical details, see: [DATABASE_README.md](DATABASE_README.md)**
+📊 **For comprehensive database documentation, see: [DATABASE.md](DATABASE.md)**
 
-💾 **Legacy Cleanup**: Irreversible deletion executed (Aug 12, 2025). No legacy or backup GridFS collections remain.
+### **5. Seed Templates (First Time Only)**
 
-### **5. Run Application**
+```bash
+cd server
+node seed-templates.js
+# Seeds 23 NAAC templates organized in 3 folders
+```
+
+Verify templates:
+```bash
+node check-templates.js
+# Shows all 23 templates grouped by folder
+```
+
+### **6. Run Application**
 
 ```bash
 # Terminal 1: Start Backend Server
 cd server
-npm start
+npm run dev
 # Server runs on http://localhost:5000
 
 # Terminal 2: Start Frontend
@@ -137,13 +169,37 @@ npm run dev
 # Frontend runs on http://localhost:5173
 ```
 
+### **7. Default Admin Login**
+
+```
+Email: admin@iqac.com
+Password: admin123
+```
+
+---
+
+## 🔧 **UTILITY SCRIPTS**
+
+Useful maintenance scripts in `server/` directory:
+
+```bash
+# Seed assignment templates (23 NAAC templates)
+node seed-templates.js
+
+# Verify templates in database
+node check-templates.js
+
+# Inspect database collections and structure
+node inspect-database.js
+```
+
 ---
 
 ## 📁 **FILE STORAGE SYSTEM**
 
-### **Unified GridFS Storage (Final State)**
+### **Unified GridFS Storage**
 ```javascript
-// Single bucket structure - ALL files in one place
+// Single master-files bucket for all documents
 master-files/
 ├── 2024_CS101_syllabus.pdf
 ├── 2024_CS201_assignment.pdf  
@@ -152,20 +208,30 @@ master-files/
 
 // Naming Convention
 filename = `${year}_${courseCode}_${docname}.${ext}`
+```
 
-// Examples:
-// - 2024_CS101_Syllabus.pdf
-// - 2023_CS102_LessonPlan.docx  
-// - 2024_CS103_CourseAnalysis.pdf
+### **Template File System**
+```
+SoCSE Course File Templates/
+├── 000_Front Sheet.docx
+├── 00_New Index Sheet.docx
+├── 02_03_2025-26 New Template for Syllabus_Lesson Plan.docx
+├── 6a_8_CIE_CIE2_SEE exam and Marks/
+│   ├── CIE_QP_Format.pdf
+│   ├── CIE_Answer Scheme.pdf
+│   └── ...
+└── 6b_Remedial Folder/
+    ├── BTech_ Remedial Time Table.xlsx
+    └── ...
 ```
 
 ### **File Upload Process**
 ```javascript
-// 1. File uploaded via POST /api/files/upload
-// 2. Stored in GridFS master-files bucket
-// 3. Metadata saved (single source)
-// 4. Task updated with fileId reference
-// 5. Reviewer notified of new submission
+// 1. User uploads via task interface
+// 2. File stored in GridFS master-files bucket with auto-chunking (255KB)
+// 3. Metadata saved to files collection
+// 4. Task updated with file reference
+// 5. Reviewers notified
 ```
 
 ### **File Metadata Structure**
@@ -635,19 +701,53 @@ Documentation: Comprehensive with technical details
 - ✅ **Secure**: Role-based permissions with proper authentication
 - ✅ **Production-Ready**: Full MongoDB Atlas integration with environment configuration
 
-### **🚀 Ready for Deployment**
+---
 
-The IQAC system is now **production-ready** with:
-- Complete technical documentation
-- Optimized database structure  
-- Production environment configuration
-- Comprehensive testing validation
-- Legacy system cleanup preparation
-- Clear maintenance procedures
+## 🧹 **CLEANUP SUMMARY**
 
-**System Status: ✅ COMPLETE AND READY FOR PRODUCTION DEPLOYMENT**
+**Date: December 8, 2025**
+
+### **Deleted Temporary Files (27 files)**
+- ✅ Test scripts (9): `test-api-endpoints.js`, `test-connection.js`, `test-file-merge.js`, etc.
+- ✅ Cleanup scripts (5): `cleanup-all-tasks.js`, `cleanup-duplicates.js`, etc.
+- ✅ Debug scripts (2): `debug-auth-server.js`, `debug-auth-token.js`
+- ✅ Migration scripts (7): `migrate-to-master-files.js`, `investigate-chunks.js`, etc.
+- ✅ One-time check scripts (4): `check-duplicates.js`, `fix-reviewer-approvals.js`, etc.
+
+### **Retained Utility Scripts (3 files)**
+- ✅ `seed-templates.js` - Seed 23 NAAC templates
+- ✅ `check-templates.js` - Verify template seeding
+- ✅ `inspect-database.js` - Database debugging tool
+
+### **Database Cleanup**
+- ✅ Dropped `master_files` collection (22 test documents)
+- ✅ Dropped `master_files.files` (31 duplicate files)
+- ✅ Dropped `master_files.chunks` (31 duplicate chunks)
+- ✅ Retained `master-files.files` (45 production files)
+- ✅ Retained `master-files.chunks` (408 production chunks)
+
+### **Code Standardization**
+- ✅ All code now uses `master-files` (hyphen) consistently
+- ✅ File model updated to use `files` collection for metadata
+- ✅ Tasks route updated to use `master-files` bucket
 
 ---
+
+## 🚀 **DEPLOYMENT STATUS**
+
+### **System Ready for Production**
+
+The IQAC system is now **production-ready** with:
+- ✅ Complete technical documentation
+- ✅ Optimized database structure (test collections removed)
+- ✅ Production environment configuration
+- ✅ 23 NAAC templates integrated and tested
+- ✅ Template download/view system functional
+- ✅ Course-centric workflow implemented
+- ✅ Clean codebase (temporary files removed)
+- ✅ Unified GridFS storage (`master-files` only)
+
+**System Status: ✅ PRODUCTION-READY (December 8, 2025)**
 
 ---
 
