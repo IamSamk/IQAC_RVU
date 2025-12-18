@@ -5,7 +5,7 @@ import iqac3 from "../assets/iqac3.jpg";
 import iqac4 from "../assets/iqac4.jpg";
 import './Landing.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import PDFViewer from '../components/PDFViewer.jsx'; // Corrected import path
+import PDFThumbnail from '../components/PDFThumbnail.jsx';
 
 
 const pdfFiles = [
@@ -153,23 +153,11 @@ const AchievementsSection = () => {
               rel="noopener noreferrer"
               style={{ textDecoration: "none", color: "#D5AB5D" }}
             >
-              <div style={{ 
-                width: '200px', 
-                height: '160px', 
-                background: "linear-gradient(135deg, #fff, #f8f9fa)",
-                borderRadius: '12px', 
-                overflow: 'hidden',
-                boxShadow: "0 8px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.8)",
-                border: "1px solid rgba(213, 171, 93, 0.3)",
-                transition: "transform 0.3s ease"
-              }}>
-                <PDFViewer
-                  fileUrl={`/pdfs/${file}`}
-                  showControls={false}
-                  fitParentWidth={true}
-                  interactive={false}
-                />
-              </div>
+              <PDFThumbnail
+                fileUrl={`/pdfs/${file}`}
+                width={200}
+                height={160}
+              />
               <p style={{ 
                 marginTop: "1rem", 
                 fontWeight: "bold", 

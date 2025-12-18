@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import "./Research.css";
 
 const indexingData = [
@@ -74,87 +74,57 @@ const chartConfigs = [
 ];
 
 const ChartCard = ({ title, subtitle, data, categories, colors }) => {
-  const maxValue = Math.max(
-    ...data.flatMap((item) => categories.map((cat) => item.values[cat.key] ?? 0))
-  );
-  const maxBarHeight = 220;
+  const [selectedYear, setSelectedYear] = useState(data[data.length - 1]?.year || "2025");
 
-  const handleScroll = (direction) => {
-    const safeTitle = title.replace(/"/g, '\"');
-    const container = document.querySelector(
-      `[data-chart="${safeTitle}"] .research-chart-grid`
-    );
-    if (container) {
-      const scrollAmount = 260;
-      container.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth"
-      });
-    }
-  };
+  const selectedRow = useMemo(
+    () => data.find((d) => d.year === selectedYear) || data[0],
+    [data, selectedYear]
+  );
+
+  const maxValue = Math.max(...categories.map((cat) => selectedRow.values[cat.key] ?? 0));
+  const maxBarHeight = 140;
 
   return (
     <div className="research-chart-card" data-chart={title}>
       <div className="research-card-header">
         <h2>{title}</h2>
         <p>{subtitle}</p>
-      </div>
-      <div className="research-chart-wrapper">
-        <div className="research-chart-grid">
-          {data.map(({ year, values }) => (
-            <div key={year} className="research-year-group">
-              <div className="research-bar-group">
-                {categories.map(({ key, label }) => {
-                  const value = values[key] ?? 0;
-                  const rawHeight = maxValue === 0 ? 0 : (value / maxValue) * maxBarHeight;
-                  const height = value === 0 ? 0 : Math.max(rawHeight, 28);
-                  const isZero = value === 0;
-                  const isTotal = key.toLowerCase() === "total";
-                  return (
-                    <div
-                      key={key}
-                      className={`research-bar-item${isTotal ? " research-bar-item-total" : ""}`}
-                    >
-                      <span
-                        className="research-bar-value"
-                        style={{ opacity: isZero ? 0.4 : 1 }}
-                      >
-                        {value}
-                      </span>
-                      <div className="research-bar-outer">
-                        <div
-                          className="research-bar-fill"
-                          style={{
-                            height: `${height}px`,
-                            background: colors[key]
-                          }}
-                        />
-                        <div className="research-bar-base" />
-                      </div>
-                      <span className="research-bar-category">{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <span className="research-year-label">{year}</span>
-            </div>
-          ))}
+        <div className="research-year-selector">
+          <label htmlFor={`${title}-year`}>Year</label>
+          <select
+            id={`${title}-year`}
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+          >
+            {data.map(({ year }) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
         </div>
-        <div className="research-scroll-controls">
-          <button
-            type="button"
-            aria-label={`Scroll ${title} left`}
-            onClick={() => handleScroll("left")}
-          >
-            <span>←</span>
-          </button>
-          <button
-            type="button"
-            aria-label={`Scroll ${title} right`}
-            onClick={() => handleScroll("right")}
-          >
-            <span>→</span>
-          </button>
+      </div>
+      <div className="research-chart-wrapper simple">
+        <div className="research-simple-grid">
+          {categories.map(({ key, label }) => {
+            const value = selectedRow.values[key] ?? 0;
+            const height = maxValue === 0 ? 0 : Math.max((value / maxValue) * maxBarHeight, 6);
+            const isZero = value === 0;
+            return (
+              <div key={key} className="research-simple-bar">
+                <div className="research-simple-value" style={{ opacity: isZero ? 0.4 : 1 }}>
+                  {value}
+                </div>
+                <div className="research-simple-bar-outer">
+                  <div
+                    className="research-simple-bar-fill"
+                    style={{ height: `${height}px`, background: colors[key] }}
+                  />
+                </div>
+                <div className="research-simple-label">{label}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="research-legend">

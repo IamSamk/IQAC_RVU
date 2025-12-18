@@ -2025,7 +2025,7 @@ const Roles = () => {
                         onClick={() => handleDeleteCourse(course._id)}
                         title="Delete Course"
                       >
-                        🗑️
+                        Delete
                       </button>
                     </td>
                   </tr>

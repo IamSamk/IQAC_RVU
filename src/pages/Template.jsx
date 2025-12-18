@@ -379,7 +379,7 @@ const Template = () => {
                         e.target.style.color = '#D5AB5D';
                       }}
                     >
-                      👁️ View
+                      View
                     </button>
                     <button
                       onClick={() => handleDownload(template)}
@@ -401,7 +401,7 @@ const Template = () => {
                         e.target.style.background = '#D5AB5D';
                       }}
                     >
-                      📥 Download
+                      Download
                     </button>
                   </div>
                 </div>

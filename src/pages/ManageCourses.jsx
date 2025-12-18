@@ -229,21 +229,21 @@ export default function ManageCourses() {
                       onClick={() => viewCourseDetails(course._id)}
                       title="View Details"
                     >
-                      👁️
+                      View
                     </button>
                     <button 
                       className="btn-edit" 
                       onClick={() => handleEdit(course)}
                       title="Edit Course"
                     >
-                      ✏️
+                      Edit
                     </button>
                     <button 
                       className="btn-delete" 
                       onClick={() => handleDelete(course._id)}
                       title="Delete Course"
                     >
-                      🗑️
+                      Delete
                     </button>
                   </td>
                 </tr>
