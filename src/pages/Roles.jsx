@@ -1812,10 +1812,11 @@ const Roles = () => {
               <input
                 type="text"
                 value={courseForm.courseCode}
-                onChange={(e) => setCourseForm({...courseForm, courseCode: e.target.value})}
+                onChange={(e) => setCourseForm({
+                  ...courseForm,
+                  courseCode: e.target.value.toUpperCase().trim()
+                })}
                 placeholder="e.g., CS101"
-                pattern="^[A-Z]{2,4}\\d{3}$"
-                title="Format: 2-4 uppercase letters followed by 3 digits"
                 required
               />
               <small className="form-help">Format: 2-4 letters + 3 digits (e.g., CS101)</small>
@@ -1839,10 +1840,8 @@ const Roles = () => {
               <input
                 type="text"
                 value={courseForm.year}
-                onChange={(e) => setCourseForm({...courseForm, year: e.target.value})}
+                onChange={(e) => setCourseForm({...courseForm, year: e.target.value.trim()})}
                 placeholder="2024"
-                pattern="^\\d{4}$"
-                title="4-digit year"
                 required
               />
             </div>
