@@ -13,38 +13,43 @@
 
 .page-header h1 {
   font-size: 2rem;
-  color: #1a1a1a;
+  color: #D5AB5D;
   margin: 0;
 }
 
 .btn-primary {
-  background-color: #007bff;
-  color: white;
+  background: #D5AB5D;
+  color: #182E37;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 6px;
   font-size: 1rem;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
 
 .btn-primary:hover {
-  background-color: #0056b3;
+  background: #c49a4d;
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background-color: #6c757d;
-  color: white;
-  border: none;
+  background: #223b47;
+  color: #D5AB5D;
+  border: 1px solid rgba(213, 171, 93, 0.5);
   padding: 0.75rem 1.5rem;
   border-radius: 6px;
   font-size: 1rem;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  font-weight: 700;
 }
 
 .btn-secondary:hover {
-  background-color: #545b62;
+  background: #2a4752;
+  transform: translateY(-1px);
 }
 
 .loading, .error-message {
@@ -63,10 +68,11 @@
 
 /* Table Styles */
 .courses-table-container {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #1a2f38;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
   overflow: hidden;
+  border: 1px solid rgba(213, 171, 93, 0.35);
 }
 
 .courses-table {
@@ -75,43 +81,48 @@
 }
 
 .courses-table thead {
-  background-color: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
+  background: #223b47;
+  border-bottom: 2px solid #D5AB5D;
 }
 
 .courses-table th {
   padding: 1rem;
   text-align: left;
-  font-weight: 600;
-  color: #495057;
-  font-size: 0.9rem;
+  font-weight: 700;
+  color: #D5AB5D;
+  font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .courses-table tbody tr {
-  border-bottom: 1px solid #dee2e6;
-  transition: background-color 0.2s;
+  border-bottom: 1px solid rgba(213, 171, 93, 0.2);
+  transition: background-color 0.2s, color 0.2s;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.courses-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .courses-table tbody tr:hover {
-  background-color: #f8f9fa;
+  background: rgba(213, 171, 93, 0.12);
 }
 
 .courses-table td {
   padding: 1rem;
-  color: #212529;
+  color: #f2f6f9;
 }
 
 .course-id {
   font-family: 'Courier New', monospace;
-  color: #6c757d;
+  color: #D5AB5D;
   font-size: 0.9rem;
 }
 
 .no-data {
   text-align: center;
-  color: #6c757d;
+  color: #D5AB5D;
   font-style: italic;
   padding: 3rem !important;
 }
@@ -122,16 +133,21 @@
 }
 
 .btn-view, .btn-edit, .btn-delete {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
+  background: transparent;
+  border: 1px solid rgba(213, 171, 93, 0.4);
+  color: #D5AB5D;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
   cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  transition: transform 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-view:hover, .btn-edit:hover, .btn-delete:hover {
-  transform: scale(1.2);
+  transform: translateY(-1px);
+  background: #D5AB5D;
+  color: #182E37;
 }
 
 /* Modal Styles */

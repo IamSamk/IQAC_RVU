@@ -282,9 +282,12 @@ const TeachingAndLearning = () => {
                   <div className="upload-section">
                     <h4>Upload Course Document</h4>
                     <div className="file-upload-area">
+                      <div className="note" style={{ color: '#ffdddd', background: 'rgba(255,255,255,0.08)', border: '1px solid #ff6b6b', borderRadius: 6, padding: '8px 10px', marginBottom: 10, fontSize: 13 }}>
+                        Only PDF files are supported for submission. Please upload a PDF.
+                      </div>
                       <input
                         type="file"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                        accept="application/pdf,.pdf"
                         onChange={(e) => handleFileSelect(assignment._id, e.target.files[0])}
                         disabled={uploadingAssignmentId === assignment._id}
                       />

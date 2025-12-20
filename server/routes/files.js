@@ -20,24 +20,11 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'image/jpeg',
-      'image/png',
-      'image/gif'
-    ];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type'), false);
+    const allowedTypes = ['application/pdf'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('Only PDF files are allowed'), false);
     }
+    cb(null, true);
   }
 });
 
@@ -189,7 +176,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
           const updateData = { 
             status: 'file-uploaded',
             fileId: uploadStream.id,
-            fileUploadDate: new Date()
+            fileUploadDate: new Date(),
+            // Reset reviewer decisions so reviewers can act again after reupload
+            reviewerApprovals: []
           };
           
           // Clear rejection reason if this is a reupload of a rejected assignment

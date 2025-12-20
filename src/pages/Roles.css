@@ -383,16 +383,17 @@
 
 .courses-table tbody tr {
   border-bottom: 1px solid rgba(213, 171, 93, 0.2);
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, color 0.2s;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .courses-table tbody tr:hover {
-  background: rgba(213, 171, 93, 0.1);
+  background: rgba(213, 171, 93, 0.12);
 }
 
 .courses-table td {
   padding: 1rem;
-  color: #fff;
+  color: #f4f6f8;
 }
 
 .action-btn {

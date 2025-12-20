@@ -43,36 +43,39 @@ const ProgramObjectives = () => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
     gap: "2.5rem",
     width: "100%",
-    maxWidth: "1080px",
-    marginTop: "3rem"
+    maxWidth: "960px", // forces a 2x2 grid on desktop while collapsing to 1 on narrow screens
+    marginTop: "3rem",
+    justifyItems: "stretch"
   };
 
   const cardStyle = {
-    background: "linear-gradient(145deg, rgba(32, 57, 71, 0.95), rgba(18, 31, 40, 0.95))",
-    borderRadius: "24px",
-    border: "1px solid rgba(213, 171, 93, 0.35)",
-    padding: "2rem",
+    background: "linear-gradient(180deg, rgba(25, 45, 55, 0.95) 0%, rgba(14, 26, 34, 0.95) 100%)",
+    borderRadius: "20px",
+    border: "1px solid rgba(213, 171, 93, 0.3)",
+    padding: "2.25rem",
     display: "flex",
     flexDirection: "column",
-    gap: "1.25rem",
-    boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
+    gap: "1rem",
+    boxShadow: "0 22px 40px rgba(0,0,0,0.45)",
     transition: "transform 0.35s ease, box-shadow 0.35s ease",
     color: "rgba(255,255,255,0.85)",
     textAlign: "left"
   };
 
   const buttonStyle = {
-    padding: "0.75rem 1rem",
-    borderRadius: "12px",
-    border: "1px solid rgba(213, 171, 93, 0.6)",
-    background: "linear-gradient(135deg, rgba(213, 171, 93, 0.85), rgba(255, 215, 0, 0.85))",
-    color: "#0F1B23",
+    padding: "0.85rem 1rem",
+    borderRadius: "999px",
+    border: "1px solid rgba(213, 171, 93, 0.55)",
+    background: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
+    color: "#0f1b23",
     fontWeight: 600,
     cursor: "pointer",
-    transition: "transform 0.25s ease, box-shadow 0.25s ease"
+    transition: "transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease",
+    alignSelf: "flex-start",
+    boxShadow: "0 10px 25px rgba(253, 160, 133, 0.35)"
   };
 
   return (
@@ -125,20 +128,39 @@ const ProgramObjectives = () => {
             key={key}
             style={cardStyle}
             onMouseEnter={(event) => {
-              event.currentTarget.style.transform = "translateY(-10px)";
-              event.currentTarget.style.boxShadow = "0 28px 48px rgba(0,0,0,0.55)";
+              event.currentTarget.style.transform = "translateY(-10px) scale(1.01)";
+              event.currentTarget.style.boxShadow = "0 28px 52px rgba(0,0,0,0.55)";
             }}
             onMouseLeave={(event) => {
-              event.currentTarget.style.transform = "translateY(0)";
-              event.currentTarget.style.boxShadow = "0 18px 36px rgba(0,0,0,0.45)";
+              event.currentTarget.style.transform = "translateY(0) scale(1)";
+              event.currentTarget.style.boxShadow = "0 22px 40px rgba(0,0,0,0.45)";
             }}
           >
-            <h2 style={{ margin: 0, fontSize: "1.6rem", color: "#FFD870" }}>{title}</h2>
-            <p style={{ margin: 0, lineHeight: 1.6 }}>{description}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div style={{
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #f6d365, #fda085)",
+                boxShadow: "0 0 12px rgba(253, 160, 133, 0.6)"
+              }} />
+              <h2 style={{ margin: 0, fontSize: "1.65rem", color: "#FFD870", letterSpacing: "0.5px" }}>{title}</h2>
+            </div>
+            <p style={{ margin: 0, lineHeight: 1.65, color: "rgba(255,255,255,0.82)" }}>{description}</p>
             <button
               type="button"
               style={buttonStyle}
               onClick={() => window.open(file, "_blank", "noopener,noreferrer")}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.transform = "translateY(-2px)";
+                event.currentTarget.style.boxShadow = "0 16px 32px rgba(253, 160, 133, 0.45)";
+                event.currentTarget.style.filter = "brightness(1.05)";
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.transform = "translateY(0)";
+                event.currentTarget.style.boxShadow = "0 10px 25px rgba(253, 160, 133, 0.35)";
+                event.currentTarget.style.filter = "brightness(1)";
+              }}
             >
               View PDF
             </button>
