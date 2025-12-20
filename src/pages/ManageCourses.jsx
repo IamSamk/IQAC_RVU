@@ -62,14 +62,23 @@ export default function ManageCourses() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    const nextValue =
+      name === 'courseCode'
+        ? value.toUpperCase().trim()
+        : value;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'semester' || name === 'credits' ? parseInt(value) : value
+      [name]: name === 'semester' || name === 'credits' ? parseInt(nextValue) : nextValue
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const codeRegex = /^[A-Z]{2,4}\d{3}$/i;
+    if (!codeRegex.test(formData.courseCode)) {
+      alert('Course Code must be 2-4 letters followed by 3 digits (e.g., CS101).');
+      return;
+    }
     
     try {
       const token = localStorage.getItem('token');
@@ -229,21 +238,21 @@ export default function ManageCourses() {
                       onClick={() => viewCourseDetails(course._id)}
                       title="View Details"
                     >
-                      👁️
+                      View
                     </button>
                     <button 
                       className="btn-edit" 
                       onClick={() => handleEdit(course)}
                       title="Edit Course"
                     >
-                      ✏️
+                      Edit
                     </button>
                     <button 
                       className="btn-delete" 
                       onClick={() => handleDelete(course._id)}
                       title="Delete Course"
                     >
-                      🗑️
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -273,9 +282,6 @@ export default function ManageCourses() {
                     value={formData.courseCode}
                     onChange={handleInputChange}
                     placeholder="e.g., CS101"
-                    pattern="^[A-Z]{2,4}\d{3}$"
-                    title="Format: 2-4 uppercase letters followed by 3 digits (e.g., CS101)"
-                    required
                   />
                   <small>Format: 2-4 letters + 3 digits (e.g., CS101, MATH201)</small>
                 </div>
@@ -304,8 +310,6 @@ export default function ManageCourses() {
                     value={formData.year}
                     onChange={handleInputChange}
                     placeholder="2024"
-                    pattern="^\d{4}$"
-                    title="4-digit year (e.g., 2024)"
                     required
                   />
                 </div>

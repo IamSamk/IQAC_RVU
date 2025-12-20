@@ -4,7 +4,8 @@ A comprehensive web application for the Internal Quality Assurance Cell (IQAC) a
 
 ## 🚀 **PRODUCTION-READY SYSTEM STATUS**
 
-**Latest Update: December 8, 2025** - Template system integrated, database cleanup completed, course-centric workflow finalized.
+**Latest Update: December 20, 2025** - Reviewer re-review flow fixed, PDF-only submissions enforced, UI clarity updates.  
+**Previous:** December 8, 2025 - Template system integrated, database cleanup completed, course-centric workflow finalized.
 
 ✅ **System Architecture**: Course-centric assignment workflow with template system  
 ✅ **Database**: MongoDB Atlas with optimized collections (test collections removed)  
@@ -28,6 +29,8 @@ A comprehensive web application for the Internal Quality Assurance Cell (IQAC) a
 - ✅ **Real-Time Notifications**: Workflow-based alerts for assignments
 - ✅ **Banner Management**: Upload and display mission/vision PDFs (GridFS banners bucket)
 - ✅ **Production Database**: MongoDB Atlas with clean schema
+- ✅ **Reviewer UX**: Review buttons reset correctly after reupload; prior rejections no longer keep approve visible
+- ✅ **PDF-Only Submissions**: Initiator uploads are limited to PDF with clear guidance
 
 ### **System Architecture**
 

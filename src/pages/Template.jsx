@@ -151,25 +151,6 @@ const Template = () => {
     }
   };
 
-  // Handle template view (open in new tab)
-  const handleView = async (template) => {
-    try {
-      const token = getToken();
-      if (!token) {
-        alert('Please login to view templates');
-        return;
-      }
-
-      // Open in new window with token in URL (since we can't set headers for window.open)
-      const url = `${API_BASE_URL}/api/assignment-templates/${template._id}/download?inline=true&token=${encodeURIComponent(token)}`;
-      window.open(url, '_blank');
-      console.log('👁️ Viewing:', template.templateName);
-    } catch (error) {
-      console.error('💥 View error:', error);
-      alert('Error viewing template');
-    }
-  };
-
   // Show loading while checking auth
   if (!authChecked || loading) {
     return (
@@ -356,31 +337,7 @@ const Template = () => {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
-                    <button
-                      onClick={() => handleView(template)}
-                      style={{
-                        background: '#223b47',
-                        color: '#D5AB5D',
-                        border: '1px solid #D5AB5D',
-                        borderRadius: '4px',
-                        padding: '0.5rem 1rem',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                        fontSize: '0.9rem',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseOver={(e) => {
-                        e.target.style.background = '#D5AB5D';
-                        e.target.style.color = '#182E37';
-                      }}
-                      onMouseOut={(e) => {
-                        e.target.style.background = '#223b47';
-                        e.target.style.color = '#D5AB5D';
-                      }}
-                    >
-                      👁️ View
-                    </button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginLeft: '1rem' }}>
                     <button
                       onClick={() => handleDownload(template)}
                       style={{
@@ -388,7 +345,7 @@ const Template = () => {
                         color: '#182E37',
                         border: 'none',
                         borderRadius: '4px',
-                        padding: '0.5rem 1rem',
+                        padding: '0.5rem 1.1rem',
                         cursor: 'pointer',
                         fontWeight: 600,
                         fontSize: '0.9rem',
@@ -401,7 +358,7 @@ const Template = () => {
                         e.target.style.background = '#D5AB5D';
                       }}
                     >
-                      📥 Download
+                      Download
                     </button>
                   </div>
                 </div>

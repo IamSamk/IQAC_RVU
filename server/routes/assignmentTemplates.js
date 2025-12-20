@@ -109,7 +109,7 @@ router.get('/:templateId/download', async (req, res) => {
     // Set headers
     res.setHeader('Content-Type', contentType);
     
-    // PDFs can be viewed inline in browser, DOCX/XLSX will download
+    // PDFs can be viewed inline; other types download
     if (req.query.inline === 'true' && ext === '.pdf') {
       res.setHeader('Content-Disposition', `inline; filename="${template.templateName}${ext}"`);
     } else {

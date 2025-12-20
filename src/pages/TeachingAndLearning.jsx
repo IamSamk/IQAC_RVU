@@ -248,13 +248,27 @@ const TeachingAndLearning = () => {
                    assignment.assignedToReviewer._id === currentUser._id;
     }
     
-    // Check if this reviewer has already reviewed
+    // Treat fresh uploads as a new review cycle: allow review even if a prior rejection exists
+    const isFreshUpload = assignment.status === 'file-uploaded';
+    
+    // Check if this reviewer has already reviewed (only block if not a fresh upload)
     let hasAlreadyReviewed = false;
-    if (assignment.reviewerApprovals && assignment.reviewerApprovals.length > 0) {
-      hasAlreadyReviewed = assignment.reviewerApprovals.some(approval => 
-        (approval.reviewerId._id === currentUser._id || approval.reviewerId.email === currentUser.email) &&
-        (approval.status === 'approved' || approval.status === 'rejected')
-      );
+    if (!isFreshUpload && assignment.reviewerApprovals && assignment.reviewerApprovals.length > 0) {
+      const currentUserId = currentUser._id?.toString();
+      hasAlreadyReviewed = assignment.reviewerApprovals.some(approval => {
+        const approvalReviewerId = approval.reviewerId?._id 
+          ? approval.reviewerId._id.toString() 
+          : approval.reviewerId?.toString();
+        const approvalReviewerEmail = approval.reviewerId?.email;
+        const sameUser = (approvalReviewerId && currentUserId && approvalReviewerId === currentUserId) ||
+                         (approvalReviewerEmail && approvalReviewerEmail === currentUser.email);
+        const hasDecision = approval.status === 'approved' || approval.status === 'rejected';
+        return sameUser && hasDecision;
+      });
+    }
+    // If task is already rejected and no fresh upload, block review buttons
+    if (!isFreshUpload && assignment.status === 'rejected') {
+      return false;
     }
     
     // Check if assignment has file uploaded and ready for review
@@ -356,6 +370,9 @@ const TeachingAndLearning = () => {
   const hasUserReviewed = (assignment) => {
     if (!currentUser || !assignment || !assignment.reviewerApprovals) return false;
     
+    // After a fresh reupload (status file-uploaded), hide old review badges
+    if (assignment.status === 'file-uploaded') return false;
+    
     return assignment.reviewerApprovals.some(approval => 
       (approval.reviewerId._id === currentUser._id || approval.reviewerId.email === currentUser.email) &&
       (approval.status === 'approved' || approval.status === 'rejected')
@@ -366,6 +383,9 @@ const TeachingAndLearning = () => {
   const getUserReviewStatus = (assignment) => {
     if (!currentUser || !assignment || !assignment.reviewerApprovals) return null;
     
+    // After a fresh reupload, treat as no prior status
+    if (assignment.status === 'file-uploaded') return null;
+    
     const userApproval = assignment.reviewerApprovals.find(approval => 
       approval.reviewerId._id === currentUser._id || approval.reviewerId.email === currentUser.email
     );
@@ -375,6 +395,11 @@ const TeachingAndLearning = () => {
 
   // Get review status summary
   const getReviewStatusSummary = (assignment) => {
+    // On fresh upload, show pending review regardless of prior approvals
+    if (assignment.status === 'file-uploaded') {
+      return 'Pending review (new upload)';
+    }
+    
     if (!assignment.reviewerApprovals || assignment.reviewerApprovals.length === 0) {
       return 'No reviews yet';
     }
@@ -884,6 +909,9 @@ const TeachingAndLearning = () => {
                       <h4 style={{ color: '#D5AB5D', marginBottom: '12px' }}>
                         {assignment.status === 'rejected' ? 'Reupload Course Document' : 'Upload Course Document'}
                       </h4>
+                      <div style={{ color: '#ffdddd', background: 'rgba(255,255,255,0.08)', border: '1px solid #ff6b6b', borderRadius: 6, padding: '8px 10px', marginBottom: 10, fontSize: 13 }}>
+                        Only PDF files are supported for submission. Please upload a PDF.
+                      </div>
                       {assignment.status === 'rejected' && (
                         <div style={{ 
                           background: '#D5AB5D', 
@@ -903,7 +931,7 @@ const TeachingAndLearning = () => {
                       <div className="file-upload-area" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <input
                           type="file"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                          accept="application/pdf,.pdf"
                           onChange={(e) => handleFileSelect(assignment._id, e.target.files[0])}
                           disabled={uploadingAssignmentId === assignment._id}
                           style={{ 
