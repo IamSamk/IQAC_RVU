@@ -1,7 +1,11 @@
 # IQAC Database Schema Documentation
 
-> **Last Updated:** December 7, 2025  
+> **Last Updated:** December 20, 2025  
 > **Purpose:** Document current database structure, proposed changes, and migration strategy
+
+> **Update (Dec 20, 2025):**  
+> - Reviewer re-review flow: `reviewerApprovals` resets on reupload so new reviews are required.  
+> - File uploads: teaching-and-learning submissions are PDF-only (enforced at API and UI).
 
 ---
 
