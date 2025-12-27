@@ -241,7 +241,11 @@ export default function ManageCourses() {
                       {initiators.length === 0 ? (
                         <span style={{ color: '#999' }}>None</span>
                       ) : initiators.length === 1 ? (
-                        <span>{initiators[0].userId?.firstName} {initiators[0].userId?.lastName}</span>
+                        <span>
+                          {initiators[0].userId?.username || 
+                           initiators[0].userId?.email?.split('@')[0] || 
+                           'Unknown'}
+                        </span>
                       ) : (
                         <span>{initiators.length} initiators</span>
                       )}
@@ -250,29 +254,23 @@ export default function ManageCourses() {
                       {reviewers.length === 0 ? (
                         <span style={{ color: '#999' }}>None</span>
                       ) : reviewers.length === 1 ? (
-                        <span>{reviewers[0].userId?.firstName} {reviewers[0].userId?.lastName}</span>
+                        <span>
+                          {reviewers[0].userId?.username || 
+                           reviewers[0].userId?.email?.split('@')[0] || 
+                           'Unknown'}
+                        </span>
                       ) : (
                         <span>{reviewers.length} reviewers</span>
                       )}
                     </td>
                     <td className="actions">
                       <button 
-                        className="btn-view" 
-                        onClick={() => viewCourseDetails(course._id)}
-                        title="View Details"
-                      >
-                        View
-                      </button>
-                      <button 
-                        className="btn-edit" 
-                        onClick={() => handleEdit(course)}
-                        title="Edit Course"
-                      >
-                        Edit
-                      </button>
-                      <button 
                         className="btn-update"
-                        onClick={() => handleEdit(course)}
+                        onClick={() => {
+                          if (window.confirm(`⚠️ UPDATE CONFIRMATION\n\nYou are about to update course:\n"${course.courseCode} - ${course.courseName}"\n\nDo you want to proceed?`)) {
+                            handleEdit(course);
+                          }
+                        }}
                         title="Update Course"
                       >
                         Update
@@ -280,7 +278,7 @@ export default function ManageCourses() {
                       <button 
                         className="btn-delete"
                         onClick={() => {
-                          if (window.confirm(`⚠️ WARNING: Are you sure you want to delete course "${course.courseCode} - ${course.courseName}"?\n\nThis action cannot be undone and will remove all associated data.`)) {
+                          if (window.confirm(`⚠️ DELETE WARNING\n\nYou are about to permanently delete:\n"${course.courseCode} - ${course.courseName}"\n\nThis action CANNOT be undone and will remove:\n• All course data\n• All assignments for this course\n• All associated files\n\nAre you absolutely sure?`)) {
                             handleDelete(course._id);
                           }
                         }}

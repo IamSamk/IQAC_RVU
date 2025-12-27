@@ -2005,39 +2005,107 @@ const Roles = () => {
                 <th>Programme</th>
                 <th>Semester</th>
                 <th>Credits</th>
-                <th>Members</th>
+                <th>Initiator</th>
+                <th>Reviewer</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {courses.length === 0 ? (
                 <tr>
-                  <td colSpan="9" style={{textAlign: 'center', padding: '2rem'}}>
+                  <td colSpan="10" style={{textAlign: 'center', padding: '2rem'}}>
                     No courses found. Create your first course!
                   </td>
                 </tr>
               ) : (
-                courses.map(course => (
-                  <tr key={course._id}>
-                    <td style={{fontFamily: 'monospace', color: '#D5AB5D'}}>{course.courseId}</td>
-                    <td><strong>{course.courseCode}</strong></td>
-                    <td>{course.courseName}</td>
-                    <td>{course.school}</td>
-                    <td>{course.programme}</td>
-                    <td>Sem {course.semester}</td>
-                    <td>{course.credits}</td>
-                    <td>{course.courseMembers?.length || 0}</td>
-                    <td>
-                      <button 
-                        className="action-btn delete-btn"
-                        onClick={() => handleDeleteCourse(course._id)}
-                        title="Delete Course"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                courses.map(course => {
+                  // Extract initiators and reviewers from courseMembers
+                  const initiators = course.courseMembers?.filter(m => m.role === 'initiator' || m.role === 'both') || [];
+                  const reviewers = course.courseMembers?.filter(m => m.role === 'reviewer' || m.role === 'both') || [];
+                  
+                  return (
+                    <tr key={course._id}>
+                      <td style={{fontFamily: 'monospace', color: '#D5AB5D'}}>{course.courseId}</td>
+                      <td><strong>{course.courseCode}</strong></td>
+                      <td>{course.courseName}</td>
+                      <td>{course.school}</td>
+                      <td>{course.programme}</td>
+                      <td>Sem {course.semester}</td>
+                      <td>{course.credits}</td>
+                      <td>
+                        {initiators.length === 0 ? (
+                          <span style={{ color: '#999' }}>None</span>
+                        ) : initiators.length === 1 ? (
+                          <span>
+                            {initiators[0].userId?.username || 
+                             initiators[0].userId?.email?.split('@')[0] || 
+                             'Unknown'}
+                          </span>
+                        ) : (
+                          <span>{initiators.length} initiators</span>
+                        )}
+                      </td>
+                      <td>
+                        {reviewers.length === 0 ? (
+                          <span style={{ color: '#999' }}>None</span>
+                        ) : reviewers.length === 1 ? (
+                          <span>
+                            {reviewers[0].userId?.username || 
+                             reviewers[0].userId?.email?.split('@')[0] || 
+                             'Unknown'}
+                          </span>
+                        ) : (
+                          <span>{reviewers.length} reviewers</span>
+                        )}
+                      </td>
+                      <td style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button 
+                          className="action-btn update-btn"
+                          onClick={() => {
+                            if (window.confirm(`⚠️ UPDATE CONFIRMATION\n\nYou are about to update course:\n"${course.courseCode} - ${course.courseName}"\n\nDo you want to proceed?`)) {
+                              // Implement edit functionality
+                              showMessage('Update functionality - Please use Create Courses tab to modify courses', 'info');
+                            }
+                          }}
+                          title="Update Course"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid rgba(40, 167, 69, 0.6)',
+                            color: '#4ade80',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '700',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          Update
+                        </button>
+                        <button 
+                          className="action-btn delete-btn"
+                          onClick={() => {
+                            if (window.confirm(`⚠️ DELETE WARNING\n\nYou are about to permanently delete:\n"${course.courseCode} - ${course.courseName}"\n\nThis action CANNOT be undone and will remove:\n• All course data\n• All assignments for this course\n• All associated files\n\nAre you absolutely sure?`)) {
+                              handleDeleteCourse(course._id);
+                            }
+                          }}
+                          title="Delete Course"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid rgba(220, 53, 69, 0.6)',
+                            color: '#ff6b6b',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '700',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

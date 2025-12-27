@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNotifications } from '../context/NotificationContext';
 import NotificationCenter from './NotificationCenter';
+import Draggable from 'react-draggable';
 import './NotificationBell.css';
 
 const NotificationBell = () => {
@@ -37,19 +38,26 @@ const NotificationBell = () => {
       </div>
 
       {isOpen && (
-        <div className="notification-overlay" onClick={() => setIsOpen(false)}>
-          <div className="notification-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="notification-panel-header">
-              <h3>Notifications</h3>
-              <button 
-                className="close-notifications"
-                onClick={() => setIsOpen(false)}
-              >
-                ×
-              </button>
+        <div className="notification-overlay-backdrop">
+          <Draggable
+            handle=".notification-panel-header"
+            bounds="parent"
+            defaultPosition={{ x: window.innerWidth - 500, y: 80 }}
+          >
+            <div className="notification-panel-draggable">
+              <div className="notification-panel-header">
+                <span className="drag-handle-bell" title="Drag to move">⋮⋮</span>
+                <h3>Notifications</h3>
+                <button 
+                  className="close-notifications"
+                  onClick={() => setIsOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <NotificationCenter />
             </div>
-            <NotificationCenter />
-          </div>
+          </Draggable>
         </div>
       )}
     </>

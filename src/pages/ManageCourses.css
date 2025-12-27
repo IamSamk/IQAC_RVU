@@ -130,6 +130,7 @@
 .actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .btn-view, .btn-edit, .btn-update, .btn-delete {
@@ -144,7 +145,31 @@
   transition: all 0.2s;
 }
 
-.btn-view:hover, .btn-edit:hover, .btn-update:hover, .btn-delete:hover {
+.btn-update {
+  border-color: rgba(40, 167, 69, 0.6);
+  color: #4ade80;
+}
+
+.btn-update:hover {
+  background: #28a745;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
+}
+
+.btn-delete {
+  border-color: rgba(220, 53, 69, 0.6);
+  color: #ff6b6b;
+}
+
+.btn-delete:hover {
+  background: #dc3545;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+}
+
+.btn-view:hover, .btn-edit:hover {
   transform: translateY(-1px);
   background: #D5AB5D;
   color: #182E37;

@@ -397,24 +397,41 @@
 }
 
 .action-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
+  background: transparent;
+  border: 1px solid rgba(213, 171, 93, 0.4);
+  color: #D5AB5D;
+  padding: 6px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: transform 0.2s;
-  padding: 0.25rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  transition: all 0.2s;
 }
 
 .action-btn:hover {
-  transform: scale(1.2);
+  transform: translateY(-1px);
+}
+
+.update-btn {
+  border-color: rgba(40, 167, 69, 0.6);
+  color: #4ade80;
+}
+
+.update-btn:hover {
+  background: #28a745;
+  color: white;
+  box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
 }
 
 .delete-btn {
-  filter: grayscale(0.5);
+  border-color: rgba(220, 53, 69, 0.6);
+  color: #ff6b6b;
 }
 
 .delete-btn:hover {
-  filter: grayscale(0);
+  background: #dc3545;
+  color: white;
+  box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
 }
 
 @media (max-width: 768px) {
