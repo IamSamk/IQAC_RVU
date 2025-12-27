@@ -173,7 +173,6 @@ const NotificationCenter = ({ slideIn = false }) => {
                 {!notification.isRead && activeTab === 'unread' && (
                   <button
                     onClick={(e) => handleMarkAsRead(notification._id, e)}
-    </Draggable>
                     className="mark-read-btn"
                     title="Mark as read"
                   >
@@ -193,6 +192,7 @@ const NotificationCenter = ({ slideIn = false }) => {
         )}
       </div>
     </div>
+    </Draggable>
   );
 };
 

@@ -295,19 +295,6 @@ export default function ManageCourses() {
             )}
           </tbody>
         </table>
-      </div> 
-                      className="btn-delete" 
-                      onClick={() => handleDelete(course._id)}
-                      title="Delete Course"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
       </div>
 
       {/* Create/Edit Modal */}
