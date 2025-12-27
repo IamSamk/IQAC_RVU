@@ -96,7 +96,7 @@ Active Collections:
 
 ### **1. Clone Repository**
 ```bash
-git clone https://github.com/Puneetha-S-Shankar/IQAC_RVU.git
+git clone https://github.com/IamSamk/IQAC_RVU.git
 cd IQAC_RVU
 ```
 
