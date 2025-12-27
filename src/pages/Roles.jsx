@@ -1043,7 +1043,7 @@ const Roles = () => {
                                               (assignment.assignedToInitiator ? [assignment.assignedToInitiator] : []);
                             if (initiators.length === 0) return 'Not assigned';
                             if (initiators.length === 1) {
-                              return `${initiators[0].firstName} ${initiators[0].lastName}`;
+                              return initiators[0]?.username || initiators[0]?.email?.split('@')[0] || 'Unknown';
                             }
                             return `${initiators.length} initiators`;
                           })()}
@@ -1054,7 +1054,7 @@ const Roles = () => {
                                              (assignment.assignedToReviewer ? [assignment.assignedToReviewer] : []);
                             if (reviewers.length === 0) return 'Not assigned';
                             if (reviewers.length === 1) {
-                              return `${reviewers[0].firstName} ${reviewers[0].lastName}`;
+                              return reviewers[0]?.username || reviewers[0]?.email?.split('@')[0] || 'Unknown';
                             }
                             return `${reviewers.length} reviewers`;
                           })()}
@@ -1553,75 +1553,80 @@ const Roles = () => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
-                <th>Subrole</th>
-                <th>Course Code</th>
-                <th>Course Name</th>
+                <th>Assigned Courses</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {(users || []).map((user) => (
-                <tr key={user._id}>
-                  <td>{user.name}</td>
-                  <td>{user.email}</td>
-                  <td>
-                    <select
-                      value={user.role}
-                      onChange={(e) => handleUserRoleUpdate(user._id, 'role', e.target.value)}
-                    >
-                      <option value="viewer">Viewer</option>
-                      <option value="user">User</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      value={user.subrole || 'none'}
-                      onChange={(e) => handleUserRoleUpdate(user._id, 'subrole', e.target.value)}
-                    >
-                      <option value="none">None</option>
-                      <option value="initiator">Initiator</option>
-                      <option value="reviewer">Reviewer</option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      value={user.courseCode || ''}
-                      onChange={(e) => handleUserRoleUpdate(user._id, 'courseCode', e.target.value)}
-                      placeholder="Course Code"
-                      style={{ width: '100px' }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      value={user.courseName || ''}
-                      onChange={(e) => handleUserRoleUpdate(user._id, 'courseName', e.target.value)}
-                      placeholder="Course Name"
-                      style={{ width: '150px' }}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => showMessage('User updated successfully!', 'success')}
-                      style={{ 
-                        padding: '5px 10px', 
-                        fontSize: '12px',
-                        backgroundColor: '#D5AB5D',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: 'white',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Update
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {(users || []).map((user) => {
+                // Display course assignments from assignedCourses array
+                const courseAssignments = user.assignedCourses || [];
+                
+                return (
+                  <tr key={user._id}>
+                    <td>{user.username || user.displayName || user.email?.split('@')[0]}</td>
+                    <td>{user.email}</td>
+                    <td>
+                      <select
+                        value={user.role}
+                        onChange={(e) => handleUserRoleUpdate(user._id, 'role', e.target.value)}
+                      >
+                        <option value="viewer">Viewer</option>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
+                    <td>
+                      {courseAssignments.length === 0 ? (
+                        <span style={{ color: '#999', fontStyle: 'italic' }}>No courses assigned</span>
+                      ) : (
+                        <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                          {courseAssignments.map((assignment, idx) => (
+                            <div key={idx} style={{ 
+                              marginBottom: '4px', 
+                              padding: '4px 8px', 
+                              background: 'rgba(213, 171, 93, 0.1)',
+                              borderRadius: '4px',
+                              fontSize: '0.9em'
+                            }}>
+                              <strong>{assignment.courseId}</strong> - {assignment.courseName}
+                              <br />
+                              <span style={{ 
+                                color: '#D5AB5D', 
+                                fontSize: '0.85em',
+                                textTransform: 'capitalize'
+                              }}>
+                                Role: {assignment.role}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ marginTop: '8px', fontSize: '0.85em', color: '#D5AB5D' }}>
+                        💡 Tip: Assign users to courses in "Create Courses" or "Manage Courses" tabs
+                      </div>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => showMessage('User role updated successfully!', 'success')}
+                        style={{ 
+                          padding: '5px 10px', 
+                          fontSize: '12px',
+                          backgroundColor: '#D5AB5D',
+                          border: 'none',
+                          borderRadius: '4px',
+                          color: 'white',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Update
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

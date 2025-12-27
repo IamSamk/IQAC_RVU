@@ -19,6 +19,7 @@ router.get('/', async (req, res) => {
     if (year) query.year = year;
     
     const courses = await Course.find(query)
+      .populate('courseMembers.userId', 'firstName lastName username email')
       .sort({ year: -1, courseCode: 1 });
     
     // Return in format expected by frontend

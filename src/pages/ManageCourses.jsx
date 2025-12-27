@@ -212,42 +212,90 @@ export default function ManageCourses() {
               <th>Programme</th>
               <th>Semester</th>
               <th>Credits</th>
-              <th>Members</th>
+              <th>Initiator</th>
+              <th>Reviewer</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {courses.length === 0 ? (
               <tr>
-                <td colSpan="9" className="no-data">No courses found. Create your first course!</td>
+                <td colSpan="10" className="no-data">No courses found. Create your first course!</td>
               </tr>
             ) : (
-              courses.map(course => (
-                <tr key={course._id}>
-                  <td className="course-id">{course.courseId}</td>
-                  <td><strong>{course.courseCode}</strong></td>
-                  <td>{course.courseName}</td>
-                  <td>{course.school}</td>
-                  <td>{course.programme}</td>
-                  <td>Sem {course.semester}</td>
-                  <td>{course.credits}</td>
-                  <td>{course.courseMembers?.length || 0}</td>
-                  <td className="actions">
-                    <button 
-                      className="btn-view" 
-                      onClick={() => viewCourseDetails(course._id)}
-                      title="View Details"
-                    >
-                      View
-                    </button>
-                    <button 
-                      className="btn-edit" 
-                      onClick={() => handleEdit(course)}
-                      title="Edit Course"
-                    >
-                      Edit
-                    </button>
-                    <button 
+              courses.map(course => {
+                // Extract initiators and reviewers from courseMembers
+                const initiators = course.courseMembers?.filter(m => m.role === 'initiator' || m.role === 'both') || [];
+                const reviewers = course.courseMembers?.filter(m => m.role === 'reviewer' || m.role === 'both') || [];
+                
+                return (
+                  <tr key={course._id}>
+                    <td className="course-id">{course.courseId}</td>
+                    <td><strong>{course.courseCode}</strong></td>
+                    <td>{course.courseName}</td>
+                    <td>{course.school}</td>
+                    <td>{course.programme}</td>
+                    <td>Sem {course.semester}</td>
+                    <td>{course.credits}</td>
+                    <td>
+                      {initiators.length === 0 ? (
+                        <span style={{ color: '#999' }}>None</span>
+                      ) : initiators.length === 1 ? (
+                        <span>{initiators[0].userId?.firstName} {initiators[0].userId?.lastName}</span>
+                      ) : (
+                        <span>{initiators.length} initiators</span>
+                      )}
+                    </td>
+                    <td>
+                      {reviewers.length === 0 ? (
+                        <span style={{ color: '#999' }}>None</span>
+                      ) : reviewers.length === 1 ? (
+                        <span>{reviewers[0].userId?.firstName} {reviewers[0].userId?.lastName}</span>
+                      ) : (
+                        <span>{reviewers.length} reviewers</span>
+                      )}
+                    </td>
+                    <td className="actions">
+                      <button 
+                        className="btn-view" 
+                        onClick={() => viewCourseDetails(course._id)}
+                        title="View Details"
+                      >
+                        View
+                      </button>
+                      <button 
+                        className="btn-edit" 
+                        onClick={() => handleEdit(course)}
+                        title="Edit Course"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        className="btn-update"
+                        onClick={() => handleEdit(course)}
+                        title="Update Course"
+                      >
+                        Update
+                      </button>
+                      <button 
+                        className="btn-delete"
+                        onClick={() => {
+                          if (window.confirm(`⚠️ WARNING: Are you sure you want to delete course "${course.courseCode} - ${course.courseName}"?\n\nThis action cannot be undone and will remove all associated data.`)) {
+                            handleDelete(course._id);
+                          }
+                        }}
+                        title="Delete Course"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div> 
                       className="btn-delete" 
                       onClick={() => handleDelete(course._id)}
                       title="Delete Course"
