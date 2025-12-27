@@ -1,10 +1,11 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../context/NotificationContext';
 import Draggable from 'react-draggable';
 import './NotificationCenter.css';
 
 const NotificationCenter = ({ slideIn = false }) => {
+  const nodeRef = useRef(null);
   const { 
     allNotifications,
     newNotifications,
@@ -81,8 +82,8 @@ const NotificationCenter = ({ slideIn = false }) => {
 
   if (loading) {
     return (
-      <Draggable handle=".notification-header" bounds="parent">
-        <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
+      <Draggable nodeRef={nodeRef} handle=".notification-header" bounds="parent">
+        <div className={`notification-center ${slideIn ? 'slide-in' : ''}`} ref={nodeRef}>
           <div className="notification-header">
             <span className="drag-handle">⋮⋮</span>
             <span>Notifications</span>
@@ -95,8 +96,8 @@ const NotificationCenter = ({ slideIn = false }) => {
 
   if (error) {
     return (
-      <Draggable handle=".notification-header" bounds="parent">
-        <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
+      <Draggable nodeRef={nodeRef} handle=".notification-header" bounds="parent">
+        <div className={`notification-center ${slideIn ? 'slide-in' : ''}`} ref={nodeRef}>
           <div className="notification-header">
             <span className="drag-handle">⋮⋮</span>
             <span>Notifications</span>
@@ -108,8 +109,8 @@ const NotificationCenter = ({ slideIn = false }) => {
   }
 
   return (
-    <Draggable handle=".notification-header" bounds="parent">
-      <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
+    <Draggable nodeRef={nodeRef} handle=".notification-header" bounds="parent">
+      <div className={`notification-center ${slideIn ? 'slide-in' : ''}`} ref={nodeRef}>
         {/* Draggable Header */}
         <div className="notification-header">
           <span className="drag-handle" title="Drag to move">⋮⋮</span>
