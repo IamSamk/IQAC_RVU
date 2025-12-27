@@ -117,7 +117,7 @@ taskSchema.statics.findForUser = function(userId, userRole) {
       { assignedToInitiator: userId },
       { assignedToReviewer: userId }
     ]
-  }).populate('assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy');
+  }).populate('assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy courseRef');
 };
 
 // Method to check if user can perform specific action (Enhanced for Multiple Users)
