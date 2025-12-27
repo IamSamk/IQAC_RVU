@@ -1043,7 +1043,9 @@ const Roles = () => {
                                               (assignment.assignedToInitiator ? [assignment.assignedToInitiator] : []);
                             if (initiators.length === 0) return 'Not assigned';
                             if (initiators.length === 1) {
-                              return initiators[0]?.username || initiators[0]?.email?.split('@')[0] || 'Unknown';
+                              const user = initiators[0];
+                              if (!user) return 'Unknown';
+                              return user.username || user.email?.split('@')[0] || user.firstName || user._id?.toString().slice(-6) || 'Unknown';
                             }
                             return `${initiators.length} initiators`;
                           })()}
@@ -1054,7 +1056,9 @@ const Roles = () => {
                                              (assignment.assignedToReviewer ? [assignment.assignedToReviewer] : []);
                             if (reviewers.length === 0) return 'Not assigned';
                             if (reviewers.length === 1) {
-                              return reviewers[0]?.username || reviewers[0]?.email?.split('@')[0] || 'Unknown';
+                              const user = reviewers[0];
+                              if (!user) return 'Unknown';
+                              return user.username || user.email?.split('@')[0] || user.firstName || user._id?.toString().slice(-6) || 'Unknown';
                             }
                             return `${reviewers.length} reviewers`;
                           })()}

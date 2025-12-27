@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../context/NotificationContext';
+import Draggable from 'react-draggable';
 import './NotificationCenter.css';
 
 const NotificationCenter = ({ slideIn = false }) => {
@@ -80,23 +81,42 @@ const NotificationCenter = ({ slideIn = false }) => {
 
   if (loading) {
     return (
-      <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
-        <div className="loading">Loading notifications...</div>
-      </div>
+      <Draggable handle=".notification-header" bounds="parent">
+        <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
+          <div className="notification-header">
+            <span className="drag-handle">⋮⋮</span>
+            <span>Notifications</span>
+          </div>
+          <div className="loading">Loading notifications...</div>
+        </div>
+      </Draggable>
     );
   }
 
   if (error) {
     return (
-      <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
-        <div className="error">Error loading notifications: {error}</div>
-      </div>
+      <Draggable handle=".notification-header" bounds="parent">
+        <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
+          <div className="notification-header">
+            <span className="drag-handle">⋮⋮</span>
+            <span>Notifications</span>
+          </div>
+          <div className="error">Error loading notifications: {error}</div>
+        </div>
+      </Draggable>
     );
   }
 
   return (
-    <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
-      {/* Tab Navigation */}
+    <Draggable handle=".notification-header" bounds="parent">
+      <div className={`notification-center ${slideIn ? 'slide-in' : ''}`}>
+        {/* Draggable Header */}
+        <div className="notification-header">
+          <span className="drag-handle" title="Drag to move">⋮⋮</span>
+          <span>Notifications</span>
+        </div>
+        
+        {/* Tab Navigation */}
       <div className="notification-tabs">
         <button
           className={`tab-button ${activeTab === 'unread' ? 'active' : ''}`}
@@ -153,6 +173,7 @@ const NotificationCenter = ({ slideIn = false }) => {
                 {!notification.isRead && activeTab === 'unread' && (
                   <button
                     onClick={(e) => handleMarkAsRead(notification._id, e)}
+    </Draggable>
                     className="mark-read-btn"
                     title="Mark as read"
                   >

@@ -1,10 +1,50 @@
 .notification-center {
-  max-width: 400px;
-  background: #223b47;
+  position: fixed;
+  top: 80px;
+  right: 80px;
+  max-width: 450px;
+  background: linear-gradient(145deg, rgba(24, 46, 55, 0.98), rgba(18, 35, 42, 0.98));
   border-radius: 12px;
-  border: 1px solid rgba(213, 171, 93, 0.3);
+  border: 2px solid #D5AB5D;
   color: #fff;
   font-family: 'Segoe UI', sans-serif;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  cursor: move; /* Show move cursor when dragging */
+}
+
+/* Draggable Header */
+.notification-header {
+  background: linear-gradient(135deg, #D5AB5D, #c4983e);
+  color: #182E37;
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: move;
+  user-select: none;
+  border-bottom: 2px solid rgba(24, 46, 55, 0.3);
+  border-radius: 10px 10px 0 0;
+}
+
+.drag-handle {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: rgba(24, 46, 55, 0.6);
+  cursor: grab;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: rgba(24, 46, 55, 0.9);
+}
+
+.notification-header:hover .drag-handle {
+  color: rgba(24, 46, 55, 0.8);
 }
 
 /* Tab Navigation Styles */

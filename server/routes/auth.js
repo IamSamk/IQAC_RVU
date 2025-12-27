@@ -333,5 +333,138 @@ router.get('/verify', authenticateToken, async (req, res) => {
   }
 });
 
+// Get current user's profile
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      school: user.school,
+      assignedCourses: user.assignedCourses || [],
+      profileImage: user.profileImage,
+      lastLogin: user.lastLogin
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Upload profile image
+router.post('/upload-profile-image', authenticateToken, async (req, res) => {
+  try {
+    const multer = require('multer');
+    const { GridFSBucket } = require('mongodb');
+    const { getDb } = require('../config/database');
+    
+    // Configure multer for memory storage
+    const storage = multer.memoryStorage();
+    const upload = multer({
+      storage,
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Only image files are allowed'), false);
+        }
+      }
+    }).single('profileImage');
+    
+    upload(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      const db = getDb();
+      const bucket = new GridFSBucket(db, { bucketName: 'profile-images' });
+      
+      // Delete old profile image if exists
+      const user = await User.findById(req.user._id);
+      if (user.profileImage) {
+        try {
+          await bucket.delete(user.profileImage);
+        } catch (deleteErr) {
+          console.error('Error deleting old profile image:', deleteErr);
+        }
+      }
+      
+      // Upload new image
+      const uploadStream = bucket.openUploadStream(req.file.originalname, {
+        contentType: req.file.mimetype,
+        metadata: {
+          uploadedBy: req.user._id,
+          uploadedAt: new Date()
+        }
+      });
+      
+      uploadStream.end(req.file.buffer);
+      
+      uploadStream.on('finish', async () => {
+        // Update user with new profile image ID
+        user.profileImage = uploadStream.id;
+        await user.save();
+        
+        res.json({
+          message: 'Profile image uploaded successfully',
+          profileImage: uploadStream.id
+        });
+      });
+      
+      uploadStream.on('error', (error) => {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'Failed to upload image' });
+      });
+    });
+  } catch (error) {
+    console.error('Profile image upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// Get profile image
+router.get('/profile-image/:userId', async (req, res) => {
+  try {
+    const { GridFSBucket } = require('mongodb');
+    const { getDb } = require('../config/database');
+    const { ObjectId } = require('mongodb');
+    
+    const user = await User.findById(req.params.userId);
+    
+    if (!user || !user.profileImage) {
+      return res.status(404).json({ error: 'Profile image not found' });
+    }
+    
+    const db = getDb();
+    const bucket = new GridFSBucket(db, { bucketName: 'profile-images' });
+    
+    const downloadStream = bucket.openDownloadStream(new ObjectId(user.profileImage));
+    
+    downloadStream.on('error', (error) => {
+      console.error('Download error:', error);
+      res.status(404).json({ error: 'Profile image not found' });
+    });
+    
+    res.setHeader('Content-Type', 'image/jpeg');
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error('Get profile image error:', error);
+    res.status(500).json({ error: 'Failed to retrieve image' });
+  }
+});
+
 module.exports = router;
 module.exports.authenticateToken = authenticateToken;

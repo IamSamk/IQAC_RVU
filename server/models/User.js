@@ -35,6 +35,12 @@ const userSchema = new mongoose.Schema({
     index: true
   },
   
+  // Profile image (GridFS file ID)
+  profileImage: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null
+  },
+  
   // Denormalized course assignments for quick lookup
   // Auto-populated from Course.courseMembers
   assignedCourses: [{

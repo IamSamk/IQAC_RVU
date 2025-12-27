@@ -168,14 +168,13 @@ const Navbar = () => {
           </Link>
         ) : (
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-            <span
-              onClick={() => setShowProfile(!showProfile)}
-              style={{ ...linkStyle, cursor: "pointer", position: 'relative' }}
+            <Link
+              to="/profile"
+              style={{ ...linkStyle, cursor: "pointer" }}
               className="nav-hover"
-              data-profile-trigger="true"
             >
               <FaUser /> Profile
-            </span>
+            </Link>
             <span
               onClick={handleLogout}
               style={{ ...linkStyle, cursor: "pointer" }}
