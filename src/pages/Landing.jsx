@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import iqac1 from "../assets/iqac1.jpg";
 import iqac2 from "../assets/iqac2.jpg";
 import iqac3 from "../assets/iqac3.jpg";
@@ -6,9 +6,9 @@ import iqac4 from "../assets/iqac4.jpg";
 import './Landing.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import PDFThumbnail from '../components/PDFThumbnail.jsx';
+import { API_BASE_URL } from '../config/api';
 
-
-const pdfFiles = [
+const staticPdfFiles = [
   "BB 1st.pdf",
   "BB 2nd.pdf",
   "BB 3rd.pdf",
@@ -18,6 +18,47 @@ const pdfFiles = [
 ];
 
 const AchievementsSection = () => {
+  const [banners, setBanners] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/banners/list`);
+        if (response.ok) {
+          const data = await response.json();
+          // Sort banners by upload date (newest first)
+          const sortedBanners = (data.banners || []).sort((a, b) => 
+            new Date(b.uploadDate) - new Date(a.uploadDate)
+          );
+          setBanners(sortedBanners);
+        }
+      } catch (error) {
+        console.error("Error fetching banners:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBanners();
+  }, []);
+
+  // Combine static and dynamic banners
+  // We'll display dynamic banners first
+  const allBanners = [
+    ...banners.map(b => ({
+      type: 'dynamic',
+      id: b._id,
+      name: b.originalName || b.filename,
+      url: `${API_BASE_URL}/api/banners/${b._id}`
+    })),
+    ...staticPdfFiles.map(f => ({
+      type: 'static',
+      name: f.replace('.pdf', ''),
+      url: `/pdfs/${f}`
+    }))
+  ];
+
   return (
     <div style={{ 
       padding: "4rem 2rem", 
@@ -91,7 +132,7 @@ const AchievementsSection = () => {
           zIndex: 2
         }}
       >
-        {pdfFiles.map((file, index) => (
+        {allBanners.map((file, index) => (
           <div
             key={index}
             style={{
@@ -148,13 +189,13 @@ const AchievementsSection = () => {
             ></div>
 
             <a
-              href={`/pdfs/${file}`}
+              href={file.url}
               target="_blank"
               rel="noopener noreferrer"
               style={{ textDecoration: "none", color: "#D5AB5D" }}
             >
               <PDFThumbnail
-                fileUrl={`/pdfs/${file}`}
+                fileUrl={file.url}
                 width={200}
                 height={160}
               />
@@ -168,7 +209,7 @@ const AchievementsSection = () => {
                 backgroundClip: "text",
                 textShadow: "0 2px 4px rgba(0,0,0,0.3)"
               }}>
-                View {file.replace(".pdf", "")}
+                {file.type === 'static' ? `View ${file.name}` : file.name}
               </p>
             </a>
           </div>

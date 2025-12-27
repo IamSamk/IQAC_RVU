@@ -364,7 +364,7 @@ router.post('/upload-profile-image', authenticateToken, async (req, res) => {
   try {
     const multer = require('multer');
     const { GridFSBucket } = require('mongodb');
-    const { getDb } = require('../config/database');
+    const dbConfig = require('../config/database');
     
     // Configure multer for memory storage
     const storage = multer.memoryStorage();
@@ -389,7 +389,7 @@ router.post('/upload-profile-image', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
       }
       
-      const db = getDb();
+      const db = dbConfig.getDatabase();
       const bucket = new GridFSBucket(db, { bucketName: 'profile-images' });
       
       // Delete old profile image if exists
@@ -439,7 +439,7 @@ router.post('/upload-profile-image', authenticateToken, async (req, res) => {
 router.get('/profile-image/:userId', async (req, res) => {
   try {
     const { GridFSBucket } = require('mongodb');
-    const { getDb } = require('../config/database');
+    const dbConfig = require('../config/database');
     const { ObjectId } = require('mongodb');
     
     const user = await User.findById(req.params.userId);
@@ -448,7 +448,7 @@ router.get('/profile-image/:userId', async (req, res) => {
       return res.status(404).json({ error: 'Profile image not found' });
     }
     
-    const db = getDb();
+    const db = dbConfig.getDatabase();
     const bucket = new GridFSBucket(db, { bucketName: 'profile-images' });
     
     const downloadStream = bucket.openDownloadStream(new ObjectId(user.profileImage));

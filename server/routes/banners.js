@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { GridFSBucket } = require('mongodb');
-const { getDb } = require('../config/database');
+const databaseConfig = require('../config/database');
 const { ObjectId } = require('mongodb');
+const { authenticateToken } = require('./auth');
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -19,34 +20,6 @@ const upload = multer({
   }
 });
 
-// JWT middleware (assuming it's defined in your auth routes)
-const authenticateToken = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    const User = require('../models/User');
-    const user = await User.findById(decoded.userId).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: 'Invalid token' });
-  }
-};
-
 // Admin-only middleware
 const requireAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
@@ -55,55 +28,11 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-router.use(authenticateToken);
-
-// Upload banner PDF
-router.post('/upload', requireAdmin, upload.single('banner'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const db = getDb();
-    const bucket = new GridFSBucket(db, { bucketName: 'banners' });
-
-    // Create upload stream
-    const uploadStream = bucket.openUploadStream(req.file.originalname, {
-      contentType: 'application/pdf',
-      metadata: {
-        uploadedBy: req.user._id,
-        uploadedAt: new Date(),
-        originalName: req.file.originalname,
-        isActive: true
-      }
-    });
-
-    // Write file buffer to stream
-    uploadStream.end(req.file.buffer);
-
-    uploadStream.on('finish', () => {
-      res.status(201).json({
-        message: 'Banner uploaded successfully',
-        fileId: uploadStream.id,
-        filename: req.file.originalname
-      });
-    });
-
-    uploadStream.on('error', (error) => {
-      console.error('Upload error:', error);
-      res.status(500).json({ error: 'Failed to upload banner' });
-    });
-
-  } catch (error) {
-    console.error('Banner upload error:', error);
-    res.status(500).json({ error: 'Failed to upload banner' });
-  }
-});
-
+// Public routes
 // List all banners
 router.get('/list', async (req, res) => {
   try {
-    const db = getDb();
+    const db = databaseConfig.getDatabase();
     
     if (!db) {
       console.error('❌ Database not connected');
@@ -137,7 +66,7 @@ router.get('/list', async (req, res) => {
 // Get specific banner PDF
 router.get('/:fileId', async (req, res) => {
   try {
-    const db = getDb();
+    const db = databaseConfig.getDatabase();
     const bucket = new GridFSBucket(db, { bucketName: 'banners' });
 
     const fileId = new ObjectId(req.params.fileId);
@@ -169,10 +98,65 @@ router.get('/:fileId', async (req, res) => {
   }
 });
 
+// Protected routes
+router.use(authenticateToken);
+
+// Upload banner PDF
+router.post('/upload', requireAdmin, upload.single('banner'), async (req, res) => {
+  console.log('🚀 Banner upload request received');
+  try {
+    if (!req.file) {
+      console.error('❌ No file in request');
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    console.log('📄 File received:', req.file.originalname);
+
+    const db = databaseConfig.getDatabase();
+    console.log('💾 Database connection retrieved');
+    
+    const bucket = new GridFSBucket(db, { bucketName: 'banners' });
+    console.log('🪣 GridFS bucket created');
+
+    // Create upload stream
+    const uploadStream = bucket.openUploadStream(req.file.originalname, {
+      contentType: 'application/pdf',
+      metadata: {
+        uploadedBy: req.user._id,
+        uploadedAt: new Date(),
+        originalName: req.file.originalname,
+        isActive: true
+      }
+    });
+    console.log('🌊 Upload stream opened');
+
+    // Write file buffer to stream
+    uploadStream.end(req.file.buffer);
+
+    uploadStream.on('finish', () => {
+      console.log('✅ Upload stream finished');
+      res.status(201).json({
+        message: 'Banner uploaded successfully',
+        fileId: uploadStream.id,
+        filename: req.file.originalname
+      });
+    });
+
+    uploadStream.on('error', (error) => {
+      console.error('❌ Upload stream error:', error);
+      res.status(500).json({ error: 'Failed to upload banner' });
+    });
+
+  } catch (error) {
+    console.error('❌ Banner upload error:', error);
+    console.error('❌ Stack:', error.stack);
+    res.status(500).json({ error: 'Failed to upload banner: ' + error.message });
+  }
+});
+
 // Delete banner
 router.delete('/:fileId', requireAdmin, async (req, res) => {
   try {
-    const db = getDb();
+    const db = databaseConfig.getDatabase();
     const bucket = new GridFSBucket(db, { bucketName: 'banners' });
 
     const fileId = new ObjectId(req.params.fileId);
