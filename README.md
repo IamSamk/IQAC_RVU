@@ -4,18 +4,19 @@ A comprehensive web application for the Internal Quality Assurance Cell (IQAC) a
 
 ## 🚀 **PRODUCTION-READY SYSTEM STATUS**
 
-**Latest Update: December 20, 2025** - Reviewer re-review flow fixed, PDF-only submissions enforced, UI clarity updates.  
-**Previous:** December 8, 2025 - Template system integrated, database cleanup completed, course-centric workflow finalized.
+**Latest Update: January 2, 2026** - Comprehensive codebase cleanup, Vercel deployment optimization, and documentation reorganization.
+**Previous:** December 20, 2025 - Reviewer re-review flow fixed, PDF-only submissions enforced.
 
 ✅ **System Architecture**: Course-centric assignment workflow with template system  
 ✅ **Database**: MongoDB Atlas with optimized collections (test collections removed)  
 ✅ **File Storage**: GridFS with unified `master-files` bucket (hyphen format)  
-✅ **Authentication**: Tab-independent JWT with role-based access control  
-✅ **Templates**: 23 NAAC templates organized in 3 folders (Root, CIE/SEE Exams, Remedial)  
-✅ **Documentation**: Complete technical documentation and database schema  
+✅ **Authentication**: Tab-independent JWT with role-based access control & input sanitization
+✅ **Templates**: 23 NAAC templates organized in `templates/` folder
+✅ **Documentation**: Centralized in `docs/` folder
 ✅ **Environment**: Production MongoDB credentials and configuration ready  
 ✅ **Frontend**: Template download/view system, admin panel with assignments  
-✅ **Cleanup**: All test and temporary files removed, database optimized  
+✅ **Cleanup**: All test/temporary files removed, deprecated scripts deleted
+✅ **Deployment**: Optimized for Vercel (Serverless Backend + Vite Frontend)
 
 ### **Key Features**
 
@@ -23,7 +24,7 @@ A comprehensive web application for the Internal Quality Assurance Cell (IQAC) a
 - ✅ **Assignment Templates**: 23 predefined NAAC templates with automatic file mapping
 - ✅ **Template Management**: Browse, view (PDF), and download templates by category
 - ✅ **Direct Task Assignment**: Admins create assignments from templates for specific courses
-- ✅ **Unified File System**: Single `master-files` bucket with GridFS storage  
+- ✅ **Unified File System**: Single `master-files` bucket with GridFS storage (20MB limit)
 - ✅ **User Management**: Create users without complex role hierarchies
 - ✅ **Tab-Independent Auth**: Session-based authentication for testing
 - ✅ **Real-Time Notifications**: Workflow-based alerts for assignments
@@ -31,6 +32,7 @@ A comprehensive web application for the Internal Quality Assurance Cell (IQAC) a
 - ✅ **Production Database**: MongoDB Atlas with clean schema
 - ✅ **Reviewer UX**: Review buttons reset correctly after reupload; prior rejections no longer keep approve visible
 - ✅ **PDF-Only Submissions**: Initiator uploads are limited to PDF with clear guidance
+- ✅ **Input Sanitization**: Automatic trimming of emails and usernames for robust login/registration
 
 ### **System Architecture**
 
@@ -48,18 +50,11 @@ Courses ──has members──→ Users (Initiators/Reviewers)
 
 ### **Template System**
 ```
-📁 Root Level (9 templates)
-   - Front Sheet, Index, Syllabus & Lesson Plan, Class Timetable,
-     Students List, Grade Book, Survey Analysis, Minutes of Meeting,
-     Individual Faculty Timetable
-
-📁 CIE/SEE Exams (9 templates)  
-   - CIE-1/2/3 Question Papers (PDF), Answer Schemes (PDF),
-     Consolidated Marks (DOCX), Slow Learners List, SEE Question Paper
-
-📁 Remedial (5 templates)
-   - Timetable (XLSX), Student List, Attendance, Topics Taught,
-     Improvement Analysis
+📁 templates/ (Root Directory)
+   ├── 000_Front Sheet.docx
+   ├── ...
+   ├── 6a_8_CIE_CIE2_SEE exam and Marks/
+   └── 6b_Remedial Folder/
 ```
 
 ### **Database Collections**
@@ -215,7 +210,7 @@ filename = `${year}_${courseCode}_${docname}.${ext}`
 
 ### **Template File System**
 ```
-SoCSE Course File Templates/
+templates/
 ├── 000_Front Sheet.docx
 ├── 00_New Index Sheet.docx
 ├── 02_03_2025-26 New Template for Syllabus_Lesson Plan.docx

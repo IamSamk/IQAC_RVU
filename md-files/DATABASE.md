@@ -1,6 +1,6 @@
 # IQAC Database Schema Documentation
 
-> **Last Updated:** December 20, 2025  
+> **Last Updated:** January 2, 2026  
 > **Purpose:** Document current database structure, proposed changes, and migration strategy
 
 > **Update (Dec 20, 2025):**  

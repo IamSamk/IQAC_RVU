@@ -3,8 +3,8 @@
 **Database Name**: IQAC  
 **Platform**: MongoDB Atlas  
 **Connection**: GridFS enabled for file storage  
-**Last Updated**: August 12, 2025  
-**System Version**: Simplified Direct Assignment  
+**Last Updated**: January 2, 2026  
+**System Version**: Production Ready (Vercel Optimized)  
 
 ## 🎯 **SIMPLIFIED SYSTEM OVERVIEW**
 
@@ -986,7 +986,6 @@ GET    /api/unifiedFiles/           // List all files (admin)
 GET    /api/unifiedFiles/:fileId    // Get specific file from unified bucket
 POST   /api/unifiedFiles/upload     // Alternative upload endpoint
 DELETE /api/unifiedFiles/cleanup    // Clean up legacy buckets (admin)
-GET    /api/unifiedFiles/migrate    // Migrate files to master bucket
 ```
 
 ### **Notification System Endpoints**
@@ -1145,7 +1144,7 @@ NODE_ENV=production
 
 # Server Configuration
 PORT=5000
-MAX_FILE_SIZE=10485760
+MAX_FILE_SIZE=20971520
 UPLOAD_PATH=./uploads
 
 # CORS Configuration
