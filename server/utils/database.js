@@ -1,1 +1,0 @@
-// This file is now deprecated. All logic has moved to MongoDB and GridFS. No code here is used by the backend anymore.

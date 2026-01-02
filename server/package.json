@@ -6,10 +6,6 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "node test-fileid-generation.js",
-    "migrate": "node migrate-with-new-naming.js",
-    "migrate:status": "node migrate-with-new-naming.js --status",
-    "example": "node example-new-naming-usage.js",
     "health": "curl http://localhost:5000/health"
   },
   "keywords": [

@@ -94,7 +94,13 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Only admins can create courses' });
     }
     
-    const { courseCode, courseName, school, programme, year, semester, credits, courseMembers } = req.body;
+    let { courseCode, courseName, school, programme, year, semester, credits, courseMembers } = req.body;
+    
+    // Normalize inputs
+    if (courseCode) courseCode = courseCode.trim().toUpperCase();
+    if (courseName) courseName = courseName.trim();
+    if (school) school = school.trim();
+    if (programme) programme = programme.trim();
     
     // Validate required fields
     if (!courseCode || !courseName || !school || !programme || !year) {

@@ -45,7 +45,7 @@ router.get('/:templateId/download', async (req, res) => {
     }
     
     // Map template names to actual file paths
-    const templateFilesDir = path.join(__dirname, '../..', 'SoCSE Course File Templates-20251108T075249Z-1-001', 'SoCSE Course File Templates');
+    const templateFilesDir = path.join(__dirname, '../..', 'templates');
     
     // Template name to file mapping (based on ACTUAL database template names)
     const fileMapping = {

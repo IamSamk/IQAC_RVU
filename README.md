@@ -215,7 +215,7 @@ filename = `${year}_${courseCode}_${docname}.${ext}`
 
 ### **Template File System**
 ```
-SoCSE Course File Templates/
+templates/
 ├── 000_Front Sheet.docx
 ├── 00_New Index Sheet.docx
 ├── 02_03_2025-26 New Template for Syllabus_Lesson Plan.docx

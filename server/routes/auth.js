@@ -191,7 +191,7 @@ router.put('/profile/:id', async (req, res) => {
     const updateData = {};
     if (username) updateData.username = username.trim();
     if (email) updateData.email = email.trim();
-    if (school) updateData.school = school;
+    if (school) updateData.school = school.trim();
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
