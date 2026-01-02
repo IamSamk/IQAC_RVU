@@ -104,7 +104,7 @@ taskSchema.methods.canUserAccess = function(userId, userRole) {
 // ENHANCED QUERY METHOD FOR USER'S TASKS (Support Multiple Users)
 taskSchema.statics.findForUser = function(userId, userRole) {
   if (userRole === 'admin') {
-    return this.find({}).populate('assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy'); // Admin sees all
+    return this.find({}).populate('assignedToInitiators assignedToReviewers assignedToInitiator assignedToReviewer assignedBy courseRef'); // Admin sees all
   }
   
   // User sees tasks where they are assigned (either in arrays or legacy single assignments)
