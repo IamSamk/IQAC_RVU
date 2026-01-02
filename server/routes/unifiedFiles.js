@@ -5,6 +5,7 @@ const router = express.Router();
 
 // Import authentication middleware
 const { authenticateToken } = require('./auth');
+const environment = require('../config/environment');
 
 // Import the unified file service
 const unifiedFileService = require('../services/unifiedFileService');
@@ -15,7 +16,7 @@ router.use(authenticateToken);
 // Multer configuration for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  limits: { fileSize: environment.MAX_FILE_SIZE }, // Use environment config
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       'application/pdf',

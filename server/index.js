@@ -143,13 +143,19 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Start server
-app.listen(environment.PORT, () => {
-  console.log(`🚀 Server running on port ${environment.PORT}`);
-  console.log(`🌍 Environment: ${environment.NODE_ENV}`);
-  console.log(`📊 Database: MongoDB Atlas`);
-  console.log(`📦 Master GridFS bucket: ${environment.MASTER_BUCKET_NAME}`);
-  console.log(`📁 File naming: ${environment.FILE_NAMING_FORMAT}`);
-  console.log(`🔗 Frontend: ${environment.CORS_ORIGIN}`);
-  console.log(`📅 Started: ${new Date().toISOString()}`);
-});
+// Export the app for Vercel
+module.exports = app;
+
+// Only start the server if this file is run directly
+if (require.main === module) {
+  // Start server
+  app.listen(environment.PORT, () => {
+    console.log(`🚀 Server running on port ${environment.PORT}`);
+    console.log(`🌍 Environment: ${environment.NODE_ENV}`);
+    console.log(`📊 Database: MongoDB Atlas`);
+    console.log(`📦 Master GridFS bucket: ${environment.MASTER_BUCKET_NAME}`);
+    console.log(`📁 File naming: ${environment.FILE_NAMING_FORMAT}`);
+    console.log(`🔗 Frontend: ${environment.CORS_ORIGIN}`);
+    console.log(`📅 Started: ${new Date().toISOString()}`);
+  });
+}

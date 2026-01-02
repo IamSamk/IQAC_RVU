@@ -5,12 +5,13 @@ const { GridFSBucket } = require('mongodb');
 const databaseConfig = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { authenticateToken } = require('./auth');
+const environment = require('../config/environment');
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: environment.MAX_FILE_SIZE }, // Use environment config
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
       cb(null, true);

@@ -3,6 +3,7 @@ const multer = require('multer');
 const { ObjectId } = require('mongodb');
 const mongoose = require('mongoose'); // Import Mongoose
 const { authenticateToken } = require('./auth');
+const environment = require('../config/environment');
 const router = express.Router();
 
 // Apply authentication to all routes except preview
@@ -18,7 +19,7 @@ router.use((req, res, next) => {
 // Use multer memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  limits: { fileSize: environment.MAX_FILE_SIZE }, // Use environment config
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['application/pdf'];
     if (!allowedTypes.includes(file.mimetype)) {

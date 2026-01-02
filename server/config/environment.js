@@ -9,7 +9,7 @@ const environment = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   
   // File System Configuration
-  MAX_FILE_SIZE: process.env.MAX_FILE_SIZE || 10 * 1024 * 1024, // 10MB
+  MAX_FILE_SIZE: process.env.MAX_FILE_SIZE || 20 * 1024 * 1024, // 20MB
   ALLOWED_FILE_TYPES: [
     'application/pdf',
     'application/msword',

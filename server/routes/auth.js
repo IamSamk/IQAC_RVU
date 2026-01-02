@@ -70,7 +70,12 @@ const generateToken = (userId) => {
 
 // Register route
 router.post('/register', async (req, res) => {
-  const { username, email, password, role, school } = req.body;
+  let { username, email, password, role, school } = req.body;
+  
+  // Normalize inputs
+  if (email) email = email.trim();
+  if (username) username = username.trim();
+
   try {
     // Check if user already exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -113,7 +118,12 @@ router.post('/register', async (req, res) => {
 // Login route
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+    
+    // Normalize email: trim whitespace to handle accidental spaces
+    if (email) {
+      email = email.trim();
+    }
     
     // Find user by email
     const user = await User.findOne({ email });
@@ -177,10 +187,10 @@ router.get('/profile/:id', async (req, res) => {
 // Update user profile
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { username, email, school } = req.body;
+    let { username, email, school } = req.body;
     const updateData = {};
-    if (username) updateData.username = username;
-    if (email) updateData.email = email;
+    if (username) updateData.username = username.trim();
+    if (email) updateData.email = email.trim();
     if (school) updateData.school = school;
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
