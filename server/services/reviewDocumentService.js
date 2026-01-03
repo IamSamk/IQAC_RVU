@@ -21,7 +21,8 @@ class ReviewDocumentService {
         .populate('assignedToInitiators')
         .populate('assignedToReviewer')
         .populate('assignedToReviewers')
-        .populate('assignedBy');
+        .populate('assignedBy')
+        .populate('reviewerApprovals.reviewerId');
 
       if (!task) {
         throw new Error('Task not found');
@@ -166,11 +167,11 @@ class ReviewDocumentService {
     if (task.assignedToInitiators && task.assignedToInitiators.length > 0) {
       task.assignedToInitiators.forEach(initiator => {
         doc.font('Helvetica')
-           .text(`• ${initiator.name} (${initiator.email})`, { indent: 20 });
+           .text(`• ${initiator.displayName || initiator.username} (${initiator.email})`, { indent: 20 });
       });
     } else if (task.assignedToInitiator) {
       doc.font('Helvetica')
-         .text(`• ${task.assignedToInitiator.name} (${task.assignedToInitiator.email})`, { indent: 20 });
+         .text(`• ${task.assignedToInitiator.displayName || task.assignedToInitiator.username} (${task.assignedToInitiator.email})`, { indent: 20 });
     }
     
     doc.moveDown(0.3);
@@ -180,11 +181,11 @@ class ReviewDocumentService {
     if (task.assignedToReviewers && task.assignedToReviewers.length > 0) {
       task.assignedToReviewers.forEach(reviewer => {
         doc.font('Helvetica')
-           .text(`• ${reviewer.name} (${reviewer.email})`, { indent: 20 });
+           .text(`• ${reviewer.displayName || reviewer.username} (${reviewer.email})`, { indent: 20 });
       });
     } else if (task.assignedToReviewer) {
       doc.font('Helvetica')
-         .text(`• ${task.assignedToReviewer.name} (${task.assignedToReviewer.email})`, { indent: 20 });
+         .text(`• ${task.assignedToReviewer.displayName || task.assignedToReviewer.username} (${task.assignedToReviewer.email})`, { indent: 20 });
     }
     
     doc.moveDown(0.3);
@@ -193,7 +194,7 @@ class ReviewDocumentService {
     if (task.assignedBy) {
       doc.font('Helvetica-Bold').text('Final Approver:');
       doc.font('Helvetica')
-         .text(`• ${task.assignedBy.firstName} ${task.assignedBy.lastName} (${task.assignedBy.email})`, { indent: 20 });
+         .text(`• ${task.assignedBy.displayName || task.assignedBy.username} (${task.assignedBy.email})`, { indent: 20 });
     }
     
     doc.moveDown(0.5);
@@ -263,9 +264,12 @@ class ReviewDocumentService {
         doc.font('Helvetica-Bold')
            .text(`Review ${index + 1}:`);
         
+        const reviewerName = approval.reviewerId ? (approval.reviewerId.displayName || approval.reviewerId.username) : 'Unknown Reviewer';
+        const reviewDate = approval.reviewedAt ? new Date(approval.reviewedAt) : new Date();
+
         doc.font('Helvetica')
-           .text(`Reviewer: ${approval.reviewerName || approval.reviewerEmail}`, { indent: 20 })
-           .text(`Date: ${new Date(approval.timestamp).toLocaleDateString()} ${new Date(approval.timestamp).toLocaleTimeString()}`, { indent: 20 })
+           .text(`Reviewer: ${reviewerName}`, { indent: 20 })
+           .text(`Date: ${reviewDate.toLocaleDateString()} ${reviewDate.toLocaleTimeString()}`, { indent: 20 })
            .text(`Status: ${approval.status.toUpperCase()}`, { indent: 20 });
         
         if (approval.comment) {
@@ -292,7 +296,7 @@ class ReviewDocumentService {
        .font('Helvetica');
 
     if (task.assignedBy) {
-      doc.text(`Approved by: ${task.assignedBy.firstName} ${task.assignedBy.lastName}`);
+      doc.text(`Approved by: ${task.assignedBy.displayName || task.assignedBy.username}`);
       doc.text(`Email: ${task.assignedBy.email}`);
       doc.text(`Date: ${new Date(task.updatedAt).toLocaleDateString()} ${new Date(task.updatedAt).toLocaleTimeString()}`);
       doc.text(`Status: COMPLETED`);

@@ -98,6 +98,18 @@ router.post('/create-from-template', async (req, res) => {
       });
       await notification.save();
     }
+
+    // Create notifications for all reviewers
+    for (const reviewerId of assignedReviewers) {
+      const notification = new Notification({
+        userId: reviewerId,
+        type: 'task_assigned',
+        title: 'New Review Assignment',
+        message: `You have been assigned to review: ${task.title}`,
+        taskId: task._id
+      });
+      await notification.save();
+    }
     
     // Populate for response
     await task.populate('courseRef assignedToInitiators assignedToReviewers assignedBy');
@@ -250,8 +262,26 @@ router.post('/:taskId/upload', async (req, res) => {
     
     await task.save();
     
-    // Notify reviewers if all initiators have submitted
-    if (task.allInitiatorsSubmitted()) {
+    // Check if this was a re-upload
+    const submission = task.getSubmission(userId);
+    const isReupload = submission && submission.version > 1;
+    
+    // Notify reviewers
+    if (isReupload) {
+      // Case 1: Re-upload (Update)
+      const reviewers = task.getAllReviewers();
+      for (const reviewerId of reviewers) {
+        const notification = new Notification({
+          userId: reviewerId,
+          type: 'file_updated',
+          title: 'Submission Updated',
+          message: `An initiator has updated their submission for: ${task.title}`,
+          taskId: task._id
+        });
+        await notification.save();
+      }
+    } else if (task.allInitiatorsSubmitted()) {
+      // Case 2: All initiators have submitted (First time completion)
       const reviewers = task.getAllReviewers();
       for (const reviewerId of reviewers) {
         const notification = new Notification({
@@ -612,33 +642,38 @@ router.put('/:taskId/reviewer-approve', async (req, res) => {
     });
     
     // Create notifications for relevant users
-    const allInitiators = task.getAllInitiators();
-    
-    // Notify all initiators about the approval
-    for (const initiatorId of allInitiators) {
-      const notification = new Notification({
-        userId: initiatorId,
-        type: 'reviewer_approved',
-        title: 'Document Approved by Reviewer',
-        message: `Your submission for "${task.title}" has been approved by a reviewer`,
-        taskId: task._id
-      });
-      await notification.save();
-    }
-    
-    // If all reviewers approved, notify admin
-    if (task.status === 'approved-by-reviewer') {
-      const adminUsers = await User.find({ role: 'admin' });
-      for (const admin of adminUsers) {
+    try {
+      const allInitiators = task.getAllInitiators();
+      
+      // Notify all initiators about the approval
+      for (const initiatorId of allInitiators) {
         const notification = new Notification({
-          userId: admin._id,
-          type: 'ready_for_final_approval',
-          title: 'Document Ready for Final Approval',
-          message: `"${task.title}" has been approved by all reviewers and awaits your final approval`,
+          userId: initiatorId,
+          type: 'reviewer_approved',
+          title: 'Document Approved by Reviewer',
+          message: `Your submission for "${task.title}" has been approved by a reviewer`,
           taskId: task._id
         });
         await notification.save();
       }
+      
+      // If all reviewers approved, notify admin
+      if (task.status === 'approved-by-reviewer') {
+        const adminUsers = await User.find({ role: 'admin' });
+        for (const admin of adminUsers) {
+          const notification = new Notification({
+            userId: admin._id,
+            type: 'ready_for_final_approval',
+            title: 'Document Ready for Final Approval',
+            message: `"${task.title}" has been approved by all reviewers and awaits your final approval`,
+            taskId: task._id
+          });
+          await notification.save();
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to send approval notifications:', notifError);
+      // Continue execution
     }
     
     const populatedTask = await Task.findById(taskId)
@@ -700,17 +735,22 @@ router.put('/:taskId/reviewer-reject', async (req, res) => {
     await task.save();
     
     // Create notifications for all initiators
-    const allInitiators = task.getAllInitiators();
-    
-    for (const initiatorId of allInitiators) {
-      const notification = new Notification({
-        userId: initiatorId,
-        type: 'reviewer_rejected',
-        title: 'Document Rejected by Reviewer',
-        message: `Your submission for "${task.title}" has been rejected. Reason: ${comment}`,
-        taskId: task._id
-      });
-      await notification.save();
+    try {
+      const allInitiators = task.getAllInitiators();
+      
+      for (const initiatorId of allInitiators) {
+        const notification = new Notification({
+          userId: initiatorId,
+          type: 'reviewer_rejected',
+          title: 'Document Rejected by Reviewer',
+          message: `Your submission for "${task.title}" has been rejected. Reason: ${comment}`,
+          taskId: task._id
+        });
+        await notification.save();
+      }
+    } catch (notifError) {
+      console.error('Failed to send rejection notifications:', notifError);
+      // Continue execution - don't fail the request just because notification failed
     }
     
     const populatedTask = await Task.findById(taskId)

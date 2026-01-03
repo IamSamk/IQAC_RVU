@@ -1760,17 +1760,24 @@ const Roles = () => {
       setLoading(true);
       
       try {
-        // Build courseMembers array from selected initiators and reviewers
-        const courseMembers = [
-          ...courseForm.selectedInitiators.map(userId => ({
-            userId,
-            role: 'initiator'
-          })),
-          ...courseForm.selectedReviewers.map(userId => ({
-            userId,
-            role: 'reviewer'
-          }))
-        ];
+        // Build courseMembers array with role merging (handle users who are both initiator and reviewer)
+        const memberMap = new Map();
+
+        // Process initiators
+        courseForm.selectedInitiators.forEach(userId => {
+          memberMap.set(userId, { userId, role: 'initiator' });
+        });
+
+        // Process reviewers (merge if already exists)
+        courseForm.selectedReviewers.forEach(userId => {
+          if (memberMap.has(userId)) {
+            memberMap.get(userId).role = 'both';
+          } else {
+            memberMap.set(userId, { userId, role: 'reviewer' });
+          }
+        });
+
+        const courseMembers = Array.from(memberMap.values());
 
         const response = await fetch(`${API_BASE_URL}/api/courses`, {
           method: 'POST',
