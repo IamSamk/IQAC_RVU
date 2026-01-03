@@ -364,36 +364,7 @@ POST   /api/unifiedFiles/upload  // Alternative upload endpoint
 GET    /api/notifications      // Get user notifications
 PUT    /api/notifications/:id  // Mark as read
 POST   /api/notifications      // Create notification
-```
-
----
-
-## 🧪 **TESTING**
-
-### **System Validation**
-The simplified system has been thoroughly tested:
-
-```bash
-# Run comprehensive system test
-cd server
-node test-simplified-system.js
-
-# Expected Results:
-# ✅ Dr. Smith (Initiator): Sees 4 assigned tasks
-# ✅ Dr. Jones (Reviewer): Sees 4 assigned tasks  
-# ✅ Dr. Wilson (Both): Sees 2 assigned tasks
-# ✅ Admin: Sees all 10 tasks
-# ✅ Access control: Only assigned users can see tasks
-# ✅ Permission system: Proper upload/review/approve permissions
-```
-
-### **Tab-Independent Authentication Testing**
-```javascript
-// Test multiple roles in different browser tabs
-Tab 1: Login as admin@iqac.com
-Tab 2: Login as test1@iqac.com  
-Tab 3: Login as test2@iqac.com
-// Each tab maintains independent session
+``
 ```
 
 ---
@@ -593,16 +564,6 @@ CORS_ORIGIN=<production_frontend_url>
 2. **Test**: Use `server/test-simplified-system.js` for validation
 3. **Database Details**: Reference `DATABASE_README.md` for technical schemas
 4. **Update**: Add all future changes to this single README file
-
----
-
-## 📞 **SUPPORT**
-
-For technical issues or questions:
-1. Check this comprehensive README first
-2. Review detailed technical documentation in `DATABASE_README.md`
-3. Run the test suite: `node server/test-simplified-system.js`
-4. Contact development team for additional support
 
 ---
 
