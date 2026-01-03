@@ -369,7 +369,7 @@ POST   /api/notifications      // Create notification
 
 ---
 
-## 📊 **DATABASE MODELS**
+##  **DATABASE MODELS**
 
 ### **User Model**
 ```javascript
@@ -425,7 +425,7 @@ POST   /api/notifications      // Create notification
 
 ---
 
-## 🗂️ **PROJECT STRUCTURE**
+##  **PROJECT STRUCTURE**
 
 ```
 IQAC_RVU/
@@ -444,8 +444,8 @@ IQAC_RVU/
 │   └── 📁 utils/               # Backend utilities
 ├── 📄 package.json             # Frontend dependencies
 ├── 📄 vite.config.js           # Vite configuration
-├── 📄 README.md                # ⭐ THIS FILE - Complete Documentation
-└── 📄 DATABASE_README.md       # 📊 Database structure & collections
+├── 📄 README.md                #  THIS FILE - Complete Documentation
+└── 📄 DATABASE_README.md       #  Database structure & collections
 ```
 
 ---
@@ -543,7 +543,7 @@ CORS_ORIGIN=<production_frontend_url>
 
 ```markdown
 ### **[Date] - [Update Title]**
-**Updated By**: [Your Name]
+**Updated By**: IamSamk
 - ✅ **[Feature/Fix]**: Description of what was changed
 - ✅ **[Performance]**: Any performance improvements
 - ✅ **[Database]**: Database changes made
