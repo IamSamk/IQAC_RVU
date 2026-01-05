@@ -118,7 +118,7 @@ JWT_SECRET=arbvviuareo23081413rwfWE
 
 # Server Configuration
 PORT=5000
-MAX_FILE_SIZE=10485760
+MAX_FILE_SIZE=20485760
 UPLOAD_PATH=./uploads
 CORS_ORIGIN=http://localhost:5173
 ```
