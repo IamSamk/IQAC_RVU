@@ -28,3 +28,6 @@ server/.env
 
 server/database.json
 server/uploads/
+
+# Marketing video build (local only)
+video/

@@ -96,9 +96,11 @@ def rebuild_bridges(student_id: str, threshold: float = 0.3, persist: bool = Fal
     _, chunks = _enrolled(student_id)
     pairs = cross_course_pairs(chunks, threshold)
     out = []
-    for p in pairs[:10]:
+    from app.services import llm
+    for i, p in enumerate(pairs[:10]):
         a, b = p["a"], p["b"]
-        example = (f"'{a['topic_title']}' and '{b['topic_title']}' both cover {', '.join(p['shared']) or 'related concepts'}. "
+        ai_example = llm.bridge_example(a, b, p["shared"]) if (i < 3 and llm.enabled()) else None
+        example = ai_example or (f"'{a['topic_title']}' and '{b['topic_title']}' both cover {', '.join(p['shared']) or 'related concepts'}. "
                    f"Per the syllabus: {a['syllabus_content'].split('.')[0]}. Likewise: {b['syllabus_content'].split('.')[0]}.")
         out.append({"source_chunk_id": a["chunk_id"], "target_chunk_id": b["chunk_id"], "source_topic": a["topic_title"], "target_topic": b["topic_title"],
                     "lexical_similarity": p["score"], "shared_concepts": p["shared"], "grounded_application_example": example})

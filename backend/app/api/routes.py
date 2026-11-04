@@ -7,7 +7,7 @@ from app.core.db import audit, get_db, one, rows
 from app.core.rbac import Actor, get_actor, require_role
 from app.models.schemas import (ActivityIn, ApproveOcrIn, ApproveTaskIn, CheckpointIn, CompileIn, EndSessionIn, OcrSheetIn,
                                 PacingRequest, PersonaIn, TranscriptIn, VoteIn)
-from app.services import attention, seeder
+from app.services import attention, llm, seeder
 from app.services.questions import generate_sets
 
 api = APIRouter(prefix="/api/v1")
@@ -22,6 +22,12 @@ def _404(e: Exception):
 def seed_demo():
     """Reset and seed RBAC users, CS304 + DES201 + CS204-2024, chunks, KG, PYQs, OCR sheets, co-pilot tasks, pacing calendars."""
     return seeder.seed_all()
+
+
+@api.get("/ai/status", tags=["ERP"])
+def ai_status():
+    return {"enabled": llm.enabled(), "provider": "Google Gemini API", "model": llm.MODEL,
+            "used_for": ["OCR mark-sheet vision", "lecture audio transcription", "grounded class notes", "10-set isomorphic activities", "cross-subject bridge examples"]}
 
 
 @api.get("/me", tags=["ERP"])
@@ -191,11 +197,20 @@ def push_transcript(session_id: str, body: TranscriptIn):
 
 @api.post("/live-class/{session_id}/transcribe-audio", tags=["Agent 1 - Live Class"])
 async def transcribe_audio(session_id: str, audio: UploadFile = File(...)):
-    """ASR hook. No speech engine is configured on this deployment, so this always routes to the slide fallback."""
-    _session(session_id)
-    size = len(await audio.read())
-    return {"accepted": False, "fallback_required": True, "reason": "ASR engine unavailable (no Whisper key configured)", "bytes_received": size,
-            "fallback_endpoint": f"/api/v1/live-class/{session_id}/fallback-checkpoint"}
+    """Gemini ASR. Confidence < 0.75 (or engine failure) tells the UI to open the 1-tap slide fallback."""
+    s = _session(session_id)
+    data = await audio.read()
+    res = llm.transcribe(data, audio.content_type or "audio/webm") if llm.enabled() else None
+    fallback = {"fallback_endpoint": f"/api/v1/live-class/{session_id}/fallback-checkpoint", "bytes_received": len(data)}
+    if not res or not res.get("text"):
+        return {"accepted": False, "fallback_required": True, "reason": "ASR engine unavailable or returned nothing", **fallback}
+    conf = float(res.get("confidence") or 0)
+    if conf < 0.75:
+        return {"accepted": False, "fallback_required": True, "reason": f"ASR confidence {conf:.2f} < 0.75", "partial_text": res["text"], **fallback}
+    text = ((s.get("live_transcript_text") or "") + " " + res["text"]).strip()
+    get_db().table("session_plans").update({"live_transcript_text": text, "transcription_status": "COMPLETED_ASR"}).eq("session_id", session_id).execute()
+    return {"accepted": True, "fallback_required": False, "engine": llm.MODEL, "text": res["text"], "confidence": conf,
+            "words_per_minute": res.get("words_per_minute"), "transcript_chars": len(text)}
 
 
 def _slide_bounds(slide_range: str | None) -> tuple[int, int] | None:
@@ -226,7 +241,7 @@ def fallback_checkpoint(session_id: str, body: CheckpointIn, actor: Actor = Depe
         label = label or (f"{c['topic_title']} - slide {body.slide_number}" if body.slide_number else c["topic_title"])
     db.table("session_plans").update({"fallback_slide_checkpoint": label[:120], "transcription_status": "FALLBACK_SLIDE_MANUAL"}).eq("session_id", session_id).execute()
     s["transcription_status"] = "FALLBACK_SLIDE_MANUAL"
-    notes = pacing.class_notes(s, [chunks[c] for c in covered if c in chunks], s.get("live_transcript_text"), label)
+    notes = pacing.class_notes(s, [chunks[c] for c in covered if c in chunks], s.get("live_transcript_text"), label, use_ai=True)
     result = pacing.recalibrate_after(s, covered, behind, notes, status_source="FALLBACK_SLIDE_MANUAL")
     audit(actor.user_id, "FALLBACK_CHECKPOINT", "session_plans", session_id, {"checkpoint": label, "reason": body.reason, "minutes_behind": behind})
     return {"session_id": session_id, "checkpoint": label, "covered_chunk_ids": covered, "minutes_behind": behind, "recalibration": result}
@@ -242,7 +257,10 @@ def trigger_activity(session_id: str, body: ActivityIn):
     if not chunk:
         raise HTTPException(400, "session has no planned chunk; pass chunk_id")
     course_chunks = rows(db.table("syllabus_chunks").select("*").eq("course_id", chunk["course_id"]))
-    sets = generate_sets(chunk, course_chunks, n_sets=body.n_sets)
+    sets = llm.isomorphic_sets(chunk, body.n_sets) if (body.use_ai and llm.enabled()) else None
+    engine = llm.MODEL if sets else "TEMPLATE_GENERATOR"
+    if not sets:
+        sets = generate_sets(chunk, course_chunks, n_sets=body.n_sets)
     minute = body.trigger_minute or round(s.get("predicted_dip_minute") or 18)
     goal = f"Apply {chunk['topic_title']} ({chunk['co_mapping']}, Bloom: {chunk['bloom_level']})"
     rec = db.table("polymorphic_activities").insert({"session_id": session_id, "chunk_id": chunk_id, "delivery_platform": body.delivery_platform,
@@ -256,7 +274,7 @@ def trigger_activity(session_id: str, body: ActivityIn):
         "IN_APP_10_SETS": {"status": "LIVE", "assignment": "student i receives set ((seat_index) mod 10) + 1"},
     }
     return {"activity_id": rec["activity_id"], "trigger_minute": minute, "learning_goal": goal, "chunk_id": chunk_id,
-            "delivery_platform": body.delivery_platform, "question_sets": sets, "platform_sync": webhooks}
+            "delivery_platform": body.delivery_platform, "generator": engine, "question_sets": sets, "platform_sync": webhooks}
 
 
 @api.post("/live-class/{session_id}/end-session", tags=["Agent 1 - Live Class"])
@@ -273,7 +291,7 @@ def end_session(session_id: str, body: EndSessionIn, actor: Actor = Depends(requ
         covered = body.covered_chunk_ids
     chunks = {c["chunk_id"]: c for c in rows(db.table("syllabus_chunks").select("*").in_("chunk_id", planned))} if planned else {}
     transcript = body.transcript or s.get("live_transcript_text")
-    notes = pacing.class_notes(s, [chunks[c] for c in planned if c in chunks], transcript, s.get("fallback_slide_checkpoint"))
+    notes = pacing.class_notes(s, [chunks[c] for c in planned if c in chunks], transcript, s.get("fallback_slide_checkpoint"), use_ai=True)
     result = pacing.recalibrate_after(s, covered, body.minutes_behind, notes, transcript)
     audit(actor.user_id, "END_SESSION", "session_plans", session_id, {"covered": covered, "minutes_behind": body.minutes_behind})
     return {"session_id": session_id, "generated_class_notes_md": notes, "recalibration": result}
@@ -300,12 +318,24 @@ def evaluate_sheet(body: OcrSheetIn):
 
 
 @api.post("/ocr/evaluate-sheet/upload", tags=["Agent 2 - OCR & Assessment"])
-async def evaluate_sheet_upload(image: UploadFile = File(...), offering_id: str = Form(seeder.O_CS304), sample_case: str = Form("aarav_ia1")):
-    """Image upload variant. No vision engine is configured here, so the extracted grid comes from the named sample case."""
+async def evaluate_sheet_upload(image: UploadFile = File(...), offering_id: str = Form(seeder.O_CS304), sample_case: str = Form("aarav_ia1"),
+                                exam_name: str = Form("IA-1 Examination")):
+    """Gemini vision reads the mark grid (USN, Q1a..Q3b, total, per-cell confidence). Falls back to the named sample case."""
     data = await image.read()
-    case = assessment.SAMPLE_CASES.get(sample_case, assessment.SAMPLE_CASES["aarav_ia1"])
-    res = assessment.evaluate(offering_id, {**case, "scanned_sheet_url": f"upload://{image.filename}"})
-    res["ocr_engine"] = {"mode": "SAMPLE_CASE", "bytes_received": len(data)}
+    extracted = llm.ocr_marksheet(data, image.content_type or "image/jpeg") if llm.enabled() else None
+    if extracted:
+        payload = {"student_usn": extracted["student_usn"], "exam_name": exam_name, "written_total": extracted.get("written_total"),
+                   "scanned_sheet_url": f"upload://{image.filename}",
+                   "cells": [{"q": c["q"], "marks": int(c["marks"]), "max": int(c["max"]), "conf": float(c.get("conf", 0.9))} for c in extracted["cells"]]}
+        mode = llm.MODEL
+    else:
+        payload = {**assessment.SAMPLE_CASES.get(sample_case, assessment.SAMPLE_CASES["aarav_ia1"]), "scanned_sheet_url": f"upload://{image.filename}"}
+        mode = "SAMPLE_CASE"
+    try:
+        res = assessment.evaluate(offering_id, payload)
+    except ValueError as e:
+        raise HTTPException(400, f"{e} (extracted by {mode})")
+    res["ocr_engine"] = {"mode": mode, "bytes_received": len(data)}
     return res
 
 
