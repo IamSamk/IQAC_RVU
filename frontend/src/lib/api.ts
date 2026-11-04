@@ -4,6 +4,9 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import type {
   AttentionModel,
   CheckpointResult,
+  CopilotTask,
+  Diagnostics,
+  QuizDraft,
   DataSource,
   EvaluationData,
   LiveClassData,
@@ -18,6 +21,9 @@ import {
   adaptAttention,
   adaptAudit,
   adaptCheckpoint,
+  adaptCoPo,
+  adaptDiagnostics,
+  adaptQuiz,
   adaptCompliance,
   adaptEvaluationList,
   adaptGraph,
@@ -36,7 +42,7 @@ import { fallbackCompliance } from "./fallback/compliance";
 import { fallbackMemory, fallbackTasks } from "./fallback/copilot";
 import { fallbackGraph } from "./fallback/knowledgeGraph";
 import { fallbackLiveSession } from "./fallback/liveSession";
-import { fallbackAttainment, fallbackEvaluation } from "./fallback/ocr";
+import { fallbackAttainment, fallbackCoPo, fallbackEvaluation } from "./fallback/ocr";
 import { fallbackPacing } from "./fallback/pacing";
 import { fallbackPyq } from "./fallback/pyq";
 
@@ -219,6 +225,16 @@ export const api = {
       adaptAttainment((raw as { co_attainment: unknown }).co_attainment),
     ),
 
+  getCoPo: () => call(`/assessments/co-po-mapping/${q(IDS.offering)}`, {}, fallbackCoPo, asAny(adaptCoPo)),
+  compileQuiz: (timeline: string) =>
+    call<QuizDraft | null>(`/assessments/compile`, postJson({ offering_id: IDS.offering, timeline }), null, asAny(adaptQuiz)),
+  mockTest: () => call<QuizDraft | null>(`/assessments/mock-test/${q(IDS.offering)}`, { method: "POST" }, null, asAny(adaptQuiz)),
+  getDiagnostics: () => call<Diagnostics>(`/students/${q(IDS.student)}/diagnostics`, {}, { pyqs_by_chunk: {} }, asAny(adaptDiagnostics)),
+
+  scanTasks: () =>
+    call<CopilotTask[]>(`/copilot/tasks/scan?faculty_id=${q(IDS.faculty)}`, { method: "POST" }, [], (raw) =>
+      adaptTasks((raw as { created: unknown[] }).created as never[]),
+    ),
   getTasks: () => call(`/copilot/tasks?faculty_id=${q(IDS.faculty)}`, {}, fallbackTasks, asAny(adaptTasks)),
   approveTask: (taskId: string) => call<unknown>(`/copilot/tasks/${q(taskId)}/approve`, { method: "POST" }, null, any),
   getMemory: () => call(`/copilot/memory/${q(IDS.faculty)}`, {}, fallbackMemory, asAny(adaptMemory)),

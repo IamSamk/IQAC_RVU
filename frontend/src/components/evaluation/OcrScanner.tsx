@@ -8,9 +8,10 @@ import { ChartTooltip } from "@/components/ui/ChartTooltip";
 import { Badge, Card, CardHeader, DataTableDetails, Notice } from "@/components/ui/primitives";
 import { api, useResource } from "@/lib/api";
 import { CHART } from "@/lib/chart";
-import { CO_PO_MAP, fallbackAttainment, fallbackEvaluation } from "@/lib/fallback/ocr";
+import { fallbackAttainment, fallbackEvaluation } from "@/lib/fallback/ocr";
 import { percent } from "@/lib/format";
 import type { CoAttainment, EvaluationData, OcrCell, OcrEvaluation } from "@/types";
+import { CoPoMatrix } from "./CoPoMatrix";
 
 const CONFIDENCE_THRESHOLD = 0.95;
 const FALLBACK: EvaluationData = { evaluation: fallbackEvaluation, attainment: fallbackAttainment };
@@ -312,27 +313,7 @@ export function OcrScanner() {
               rows={chart.map((row) => [row.co, `${row.before}%`, `${row.value}%`, row.value >= attainment.target_pct ? "Met" : "Below"])}
             />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <caption className="mb-2 text-left text-sm font-medium">Sample CO-PO mapping</caption>
-              <thead className="bg-slate-100 text-xs text-slate-700">
-                <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">CO</th>
-                  <th scope="col" className="px-3 py-2 font-medium">Outcome</th>
-                  <th scope="col" className="px-3 py-2 font-medium">POs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {CO_PO_MAP.map((row) => (
-                  <tr key={row.co} className="border-t border-slate-100">
-                    <th scope="row" className="px-3 py-2 font-medium">{row.co}</th>
-                    <td className="px-3 py-2 text-slate-700">{row.outcome}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-700">{row.pos}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CoPoMatrix compact />
         </div>
       </Card>
     </div>

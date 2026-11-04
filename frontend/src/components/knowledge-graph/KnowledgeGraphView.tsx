@@ -6,8 +6,10 @@ import { useMemo, useState } from "react";
 import { Badge, Card, CardHeader, PageHeader } from "@/components/ui/primitives";
 import { api, useResource } from "@/lib/api";
 import { fallbackGraph } from "@/lib/fallback/knowledgeGraph";
-import type { KGNode } from "@/types";
+import type { Diagnostics, KGNode } from "@/types";
 import { NodeDrawer } from "./NodeDrawer";
+
+const EMPTY_DIAGNOSTICS: Diagnostics = { pyqs_by_chunk: {} };
 
 const GraphCanvas = dynamic(() => import("./GraphCanvas"), {
   ssr: false,
@@ -16,6 +18,7 @@ const GraphCanvas = dynamic(() => import("./GraphCanvas"), {
 
 export function KnowledgeGraphView() {
   const { data: graph } = useResource(api.getGraph, fallbackGraph);
+  const { data: diagnostics } = useResource(api.getDiagnostics, EMPTY_DIAGNOSTICS);
   const [selected, setSelected] = useState<KGNode | null>(null);
 
   const weak = useMemo(() => graph.nodes.filter((node) => node.weak), [graph]);
@@ -63,13 +66,26 @@ export function KnowledgeGraphView() {
           <ul className="grid gap-2 md:grid-cols-2">
             {weak.map((node) => (
               <li key={node.id}>
-                <button type="button" className="btn-outline h-full w-full justify-between text-left" onClick={() => setSelected(node)}>
+                <button type="button" className="btn-outline w-full justify-between text-left" onClick={() => setSelected(node)}>
                   <span>
                     <span className="block text-xs text-critical-700">{node.weak_reason ?? "Needs revision"}</span>
                     {node.title}
                   </span>
                   <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
                 </button>
+                {(diagnostics.pyqs_by_chunk[node.id] ?? []).length > 0 && (
+                  <div className="mt-2 rounded-lg bg-slate-50 p-2.5 text-sm">
+                    <p className="text-xs font-medium text-slate-700">Practice past questions (still on the 2026 syllabus)</p>
+                    <ul className="mt-1 space-y-1">
+                      {diagnostics.pyqs_by_chunk[node.id].map((q) => (
+                        <li key={q.question_text} className="text-slate-800">
+                          <span className="mr-1.5 font-mono text-xs text-slate-600">{q.exam_year}</span>
+                          {q.question_text}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

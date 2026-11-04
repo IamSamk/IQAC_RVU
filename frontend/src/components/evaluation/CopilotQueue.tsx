@@ -1,8 +1,8 @@
 "use client";
 
-import { Bot, BrainCircuit, CheckCircle2, Eye, History, Zap } from "lucide-react";
+import { Bot, BrainCircuit, CheckCircle2, Eye, History, RefreshCw, ScanSearch, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge, Card, CardHeader, Dialog } from "@/components/ui/primitives";
+import { Badge, Card, CardHeader, Dialog, Notice } from "@/components/ui/primitives";
 import { api, useResource } from "@/lib/api";
 import { fallbackMemory, fallbackTasks } from "@/lib/fallback/copilot";
 import { formatDateTime } from "@/lib/format";
@@ -17,7 +17,23 @@ interface SessionAction {
 }
 
 export function CopilotQueue({ actor }: { actor: string }) {
-  const { data: tasks, loading } = useResource(api.getTasks, fallbackTasks);
+  const { data: loaded, loading } = useResource(api.getTasks, fallbackTasks);
+  const [drafted, setDrafted] = useState<CopilotTask[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
+  const tasks = useMemo(() => [...drafted, ...loaded.filter((t) => !drafted.some((d) => d.task_id === t.task_id))], [drafted, loaded]);
+
+  const scan = async () => {
+    setScanning(true);
+    const result = await api.scanTasks();
+    if (result.source === "demo") setScanNote(`The agent could not check, because ${result.note}.`);
+    else if (result.data.length === 0) setScanNote("Nothing new is due. The queue is up to date.");
+    else {
+      setDrafted((current) => [...result.data, ...current]);
+      setScanNote(`The agent drafted ${result.data.length} new ${result.data.length === 1 ? "task" : "tasks"} from the current state of your courses.`);
+    }
+    setScanning(false);
+  };
   const { data: memoryLog } = useResource(api.getMemory, fallbackMemory);
   const [approved, setApproved] = useState<Record<string, "live" | "demo">>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -63,12 +79,23 @@ export function CopilotQueue({ actor }: { actor: string }) {
           title="Faculty Co-Pilot queue"
           description="The agent has already prepared each draft. Nothing runs until a person approves it."
           action={
-            <Badge tone={awaiting > 0 ? "warning" : "success"}>
-              <Bot className="h-3 w-3" aria-hidden />
-              {awaiting} awaiting approval
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={awaiting > 0 ? "warning" : "success"}>
+                <Bot className="h-3 w-3" aria-hidden />
+                {awaiting} awaiting approval
+              </Badge>
+              <button type="button" className="btn-outline py-1.5" disabled={scanning || loading || busy !== null} onClick={scan}>
+                {scanning ? <RefreshCw className="h-4 w-4 animate-spin" aria-hidden /> : <ScanSearch className="h-4 w-4" aria-hidden />}
+                {scanning ? "Checking" : "Check for due work"}
+              </button>
+            </div>
           }
         />
+        {scanNote && (
+          <div className="mb-3">
+            <Notice tone="info">{scanNote}</Notice>
+          </div>
+        )}
         <ul className="space-y-2">
           {tasks.map((task) => {
             const done = isDone(task);

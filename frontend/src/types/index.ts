@@ -314,3 +314,50 @@ export interface ComplianceData {
   roles: RbacRole[];
   audit: AuditEntry[];
 }
+
+/* ---------- CO-PO mapping, quiz compiler, diagnostics ---------- */
+
+export interface CoPoRow {
+  co: string;
+  outcome: string;
+  pos_label: string;
+  correlations: Record<string, number>;
+  attainment_level: number | null;
+}
+
+export interface CoPoMapping {
+  course_code: string;
+  program_outcomes: { po: string; name: string }[];
+  rows: CoPoRow[];
+  po_attainment: { po: string; name: string; attainment: number | null }[];
+}
+
+export interface CompiledQuestion {
+  question: string;
+  answer?: string;
+  options?: string[];
+  marks: number;
+  co: string;
+  bloom: string;
+  topic: string;
+}
+
+export interface QuizDraft {
+  course_code: string;
+  timeline: string;
+  session_range: [number, number] | null;
+  total_marks: number;
+  co_split: Record<string, number>;
+  blooms_split: Record<string, number>;
+  questions: CompiledQuestion[];
+}
+
+export interface PracticePyq {
+  question_text: string;
+  exam_year: number;
+}
+
+export interface Diagnostics {
+  /** Valid past-exam questions keyed by the weak chunk they practise. */
+  pyqs_by_chunk: Record<string, PracticePyq[]>;
+}

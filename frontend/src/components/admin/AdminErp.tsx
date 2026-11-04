@@ -1,10 +1,10 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { CoPoMatrix } from "@/components/evaluation/CoPoMatrix";
 import { Badge, Card, CardHeader, PageHeader, StatTile } from "@/components/ui/primitives";
 import { api, useResource } from "@/lib/api";
 import { fallbackCompliance } from "@/lib/fallback/compliance";
-import { CO_PO_MAP } from "@/lib/fallback/ocr";
 import { formatDateTime } from "@/lib/format";
 
 const titleCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -117,17 +117,9 @@ export function AdminErp() {
                 </li>
               ))}
             </ul>
-            <h3 className="mt-4 text-sm font-medium">Sample CO-PO mapping</h3>
-            <ul className="mt-2 space-y-1 text-sm">
-              {CO_PO_MAP.map((row) => (
-                <li key={row.co} className="flex justify-between gap-3">
-                  <span className="text-slate-700">
-                    <span className="font-medium text-slate-900">{row.co}</span> {row.outcome}
-                  </span>
-                  <span className="shrink-0 text-slate-600">{row.pos}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4">
+              <CoPoMatrix compact />
+            </div>
           </Card>
         </div>
 

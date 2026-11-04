@@ -2,6 +2,7 @@
 
 import { CopilotQueue } from "@/components/evaluation/CopilotQueue";
 import { OcrScanner } from "@/components/evaluation/OcrScanner";
+import { QuizCompiler } from "@/components/evaluation/QuizCompiler";
 import { RoleGate } from "@/components/shell/RoleGate";
 import { PageHeader } from "@/components/ui/primitives";
 import { useRole } from "@/lib/rbac";
@@ -13,6 +14,7 @@ function Evaluation() {
       <PageHeader title="OCR Evaluation & Faculty Co-Pilot" description="Marks and agent drafts both stop for a human check before anything is written." />
       <div className="space-y-4">
         <OcrScanner />
+        <QuizCompiler />
         <CopilotQueue actor={role.name} />
       </div>
     </>

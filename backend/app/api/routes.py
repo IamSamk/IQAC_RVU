@@ -90,6 +90,7 @@ def compliance():
         out.append({"offering_id": off["offering_id"], "course_code": off["courses"]["course_code"], "course_title": off["courses"]["course_title"],
                     "faculty": (off.get("users") or {}).get("full_name"), "ltp": plan["ltp_badge"], "progress": plan["progress"],
                     "co_attainment": assessment.co_attainment(off["offering_id"]),
+                    "co_po_mapping": assessment.co_po_mapping(off["offering_id"]),
                     "rubric": off["courses"]["iqac_rubric_config"]})
     return {"offerings": out, "rbac_matrix": roles()}
 
@@ -358,6 +359,15 @@ def approve_ocr(eval_id: str, body: ApproveOcrIn, actor: Actor = Depends(require
 @api.get("/assessments/co-attainment/{offering_id}", tags=["Agent 2 - OCR & Assessment"])
 def co_attainment(offering_id: str, exam_name: str | None = None):
     return assessment.co_attainment(offering_id, exam_name)
+
+
+@api.get("/assessments/co-po-mapping/{offering_id}", tags=["Agent 2 - OCR & Assessment"])
+def co_po(offering_id: str):
+    """CO -> PO correlation matrix (0-3) derived from the approved syllabus, plus PO attainment."""
+    try:
+        return assessment.co_po_mapping(offering_id)
+    except ValueError as e:
+        _404(e)
 
 
 @api.post("/assessments/compile", tags=["Agent 2 - OCR & Assessment"])

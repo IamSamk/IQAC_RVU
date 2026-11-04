@@ -36,7 +36,7 @@ def scan_and_draft(faculty_id: str) -> list[dict]:
                 created.append({"faculty_id": faculty_id, "offering_id": oid, "task_title": title, "tool_call_name": "compile_biweekly_quiz",
                                 "due_timestamp": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(), "pre_executed_draft_payload": quiz})
     if created:
-        db.table("faculty_copilot_tasks").insert(created).execute()
+        return db.table("faculty_copilot_tasks").insert(created).execute().data or []
     return created
 
 

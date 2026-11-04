@@ -163,3 +163,63 @@ def compile_quiz(offering_id: str, timeline: str = "BIWEEKLY", from_session: int
     return {"offering_id": offering_id, "course_code": off["courses"]["course_code"], "timeline": "IQAC_MOCK_TEST" if mock_iqac else timeline,
             "session_range": None if mock_iqac else [from_session, to_session], "total_marks": per_q * len(questions),
             "co_split": co_split, "blooms_split": bloom_split, "rubric_target": rubric, "questions": questions}
+
+
+# ---------------------------------------------------------------- CO-PO mapping (derived from the approved syllabus)
+PROGRAM_OUTCOMES = {
+    "PO1": "Engineering knowledge", "PO2": "Problem analysis", "PO3": "Design of solutions",
+    "PO4": "Investigation of complex problems", "PO5": "Modern tool usage",
+}
+# Correlation (0-3) each Bloom level / practical contributes to each PO
+BLOOM_PO = {
+    "UNDERSTAND": {"PO1": 3, "PO2": 1},
+    "APPLY": {"PO1": 2, "PO2": 2, "PO3": 1},
+    "ANALYZE": {"PO2": 3, "PO4": 2},
+    "CREATE": {"PO3": 3, "PO5": 1},
+}
+PRACTICAL_PO = {"PO5": 3, "PO4": 1}
+VERB = {"UNDERSTAND": "Explain", "APPLY": "Apply", "ANALYZE": "Analyse", "CREATE": "Design"}
+
+
+def _level(x: float) -> int:
+    return 3 if x >= 2.5 else 2 if x >= 1.5 else 1 if x >= 0.5 else 0
+
+
+def co_po_mapping(offering_id: str) -> dict:
+    db = get_db()
+    off = one(db.table("course_offerings").select("course_id, courses(course_code, course_title)").eq("offering_id", offering_id))
+    if not off:
+        raise ValueError("offering not found")
+    chunks = rows(db.table("syllabus_chunks").select("topic_title, co_mapping, bloom_level, ltp_type, is_deprecated")
+                  .eq("course_id", off["course_id"]).order("unit_number").order("sequence_order"))
+    by_co: dict[str, list[dict]] = {}
+    for c in chunks:
+        if not c.get("is_deprecated"):
+            by_co.setdefault(c["co_mapping"], []).append(c)
+    attain = {o["co"]: o["attainment_level"] for o in co_attainment(offering_id)["outcomes"]}
+    mapping = []
+    for co in sorted(by_co):
+        cs = by_co[co]
+        contrib: dict[str, list[int]] = {}
+        for c in cs:
+            weights = PRACTICAL_PO if c.get("ltp_type") == "P" else BLOOM_PO.get((c.get("bloom_level") or "APPLY").upper(), BLOOM_PO["APPLY"])
+            for po, w in weights.items():
+                contrib.setdefault(po, []).append(w)
+        # strength = mean of contributing chunks, scaled by how much of the CO they cover
+        corr = {po: _level(sum(v) / len(v) * (len(v) / len(cs)) ** 0.5) if (v := contrib.get(po)) else 0 for po in PROGRAM_OUTCOMES}
+        theory = [c for c in cs if c.get("ltp_type") != "P"] or cs
+        blooms = [(c.get("bloom_level") or "APPLY").upper() for c in theory]
+        dominant = max(set(blooms), key=blooms.count)
+        topics = [c["topic_title"].split(":")[0] for c in theory]
+        mapping.append({"co": co, "outcome": f"{VERB.get(dominant, 'Apply')} {', '.join(topics[:3])}", "topics": topics,
+                        "bloom": dominant, "correlations": corr,
+                        "pos_label": ", ".join(po for po, v in corr.items() if v >= 2) or ", ".join(po for po, v in corr.items() if v),
+                        "attainment_level": attain.get(co)})
+    po_att = []
+    for po, name in PROGRAM_OUTCOMES.items():
+        pairs = [(m["correlations"][po], m["attainment_level"]) for m in mapping if m["correlations"][po] and m["attainment_level"] is not None]
+        w = sum(c for c, _ in pairs)
+        po_att.append({"po": po, "name": name, "attainment": round(sum(c * a for c, a in pairs) / w, 2) if w else None})
+    return {"offering_id": offering_id, "course_code": off["courses"]["course_code"], "program_outcomes": PROGRAM_OUTCOMES,
+            "mapping": mapping, "po_attainment": po_att,
+            "method": "Correlations derived from each CO's approved syllabus chunks (Bloom level, practical work); PO attainment = correlation-weighted CO attainment."}

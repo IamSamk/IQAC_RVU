@@ -1,15 +1,21 @@
-from functools import lru_cache
+import threading
 
 from supabase import Client, create_client
 
 from app.core.config import SUPABASE_KEY, SUPABASE_URL
 
+_local = threading.local()
 
-@lru_cache
+
 def get_db() -> Client:
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("SUPABASE_URL and SUPABASE_KEY (or SUPABASE_SERVICE_ROLE_KEY) must be set")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    """One client per worker thread: the shared HTTP/2 connection inside a single client
+    is not thread-safe and fails under concurrent requests."""
+    client = getattr(_local, "client", None)
+    if client is None:
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            raise RuntimeError("SUPABASE_URL and SUPABASE_KEY (or SUPABASE_SERVICE_ROLE_KEY) must be set")
+        client = _local.client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return client
 
 
 def rows(query) -> list[dict]:

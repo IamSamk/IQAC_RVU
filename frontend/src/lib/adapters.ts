@@ -5,6 +5,10 @@ import type {
   CheckpointResult,
   CheckpointTopic,
   CoAttainment,
+  CoPoMapping,
+  Diagnostics,
+  PracticePyq,
+  QuizDraft,
   ComplianceData,
   CopilotTask,
   Flashcard,
@@ -504,4 +508,51 @@ export function adaptCompliance(raw: any, audit: AuditEntry[]): ComplianceData {
     })),
     audit,
   };
+}
+
+/* ---------- CO-PO mapping, quiz compiler, diagnostics ---------- */
+
+export function adaptCoPo(raw: any): CoPoMapping {
+  const outcomes = raw.program_outcomes ?? {};
+  return {
+    course_code: raw.course_code ?? "",
+    program_outcomes: Object.entries(outcomes).map(([po, name]) => ({ po, name: String(name) })),
+    rows: need(raw.mapping, "mapping").map((row: any) => ({
+      co: row.co,
+      outcome: row.outcome,
+      pos_label: row.pos_label ?? "",
+      correlations: row.correlations ?? {},
+      attainment_level: row.attainment_level ?? null,
+    })),
+    po_attainment: (raw.po_attainment ?? []).map((po: any) => ({ po: po.po, name: po.name, attainment: po.attainment ?? null })),
+  };
+}
+
+export function adaptQuiz(raw: any): QuizDraft {
+  return {
+    course_code: raw.course_code ?? "",
+    timeline: raw.timeline ?? "",
+    session_range: Array.isArray(raw.session_range) ? [raw.session_range[0], raw.session_range[1]] : null,
+    total_marks: raw.total_marks ?? 0,
+    co_split: raw.co_split ?? {},
+    blooms_split: raw.blooms_split ?? {},
+    questions: need(raw.questions, "questions").map((q: any) => ({
+      question: q.question,
+      answer: q.answer,
+      options: q.options,
+      marks: q.marks,
+      co: q.co,
+      bloom: q.bloom,
+      topic: q.topic,
+    })),
+  };
+}
+
+export function adaptDiagnostics(raw: any): Diagnostics {
+  const pyqs_by_chunk: Record<string, PracticePyq[]> = {};
+  for (const route of need(raw.remediation_route, "remediation_route") as any[]) {
+    const step = (route.steps ?? []).find((s: any) => s.step === "Practice PYQs");
+    pyqs_by_chunk[route.chunk_id] = (step?.content ?? []).map((q: any) => ({ question_text: q.question_text, exam_year: q.exam_year }));
+  }
+  return { pyqs_by_chunk };
 }
