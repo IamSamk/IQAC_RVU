@@ -261,7 +261,7 @@ export default function UploadPage() {
                   </li>
                 ))}
               </ol>
-              <p className="mt-4 text-xs text-ink-400">This usually takes 20–60 seconds.</p>
+              <p className="mt-4 text-xs text-ink-400">This usually takes 30–90 seconds.</p>
             </div>
           )}
           {error && (
