@@ -69,26 +69,37 @@ def teacher_home(teacher_id: str) -> dict:
 
 
 def course_detail(course_id: str) -> dict:
+    """Everything the course page needs in five queries."""
     db = get_db()
     course = one(db.table("courses").select("*").eq("course_id", course_id))
     if not course:
         raise ValueError("course not found")
-    chunks = rows(db.table("syllabus_chunks").select("chunk_id, unit_number, sequence_order, topic_title, syllabus_content, ltp_type, estimated_minutes, co_mapping, bloom_level, canonical_keywords, slide_range").eq("course_id", course_id).order("unit_number").order("sequence_order"))
+    chunks = rows(db.table("syllabus_chunks").select("chunk_id, unit_number, sequence_order, topic_title, syllabus_content, ltp_type, estimated_minutes, co_mapping, bloom_level, canonical_keywords, slide_range, is_deprecated").eq("course_id", course_id).order("unit_number").order("sequence_order"))
+    title = {c["chunk_id"]: c["topic_title"] for c in chunks}
     units: dict[int, dict] = {}
     for c in chunks:
         units.setdefault(c["unit_number"], {"unit_number": c["unit_number"], "topics": []})["topics"].append(c)
+    offs = rows(db.table("course_offerings").select("*").eq("course_id", course_id).order("section"))
+    ids = [o["offering_id"] for o in offs]
+    sessions = rows(db.table("session_plans").select("session_id, offering_id, session_number, scheduled_date, status, session_type, session_duration_mins, lecture_minutes_split, activity_minutes_split, pacing_delta_mins, planned_chunk_ids, covered_chunk_ids").in_("offering_id", ids).order("session_number")) if ids else []
+    enrolled = rows(db.table("student_enrollments").select("offering_id, users(semester)").in_("offering_id", ids)) if ids else []
+    stratum = course.get("course_stratum") or attention.stratum_from_ltp(course["l_ratio"], course["t_ratio"], course["p_ratio"])
+    teachable = len([c for c in chunks if not c.get("is_deprecated")])
     sections = []
-    for off in rows(db.table("course_offerings").select("*").eq("course_id", course_id).order("section")):
-        plan = pacing.get_plan(off["offering_id"])
-        model = _attention_for(off, course)
+    for off in offs:
+        mine = [s for s in sessions if s["offering_id"] == off["offering_id"]]
+        sems = [e["users"]["semester"] for e in enrolled if e["offering_id"] == off["offering_id"] and e.get("users") and e["users"].get("semester")]
+        model = attention.build_model(stratum, round(sum(sems) / len(sems)) if sems else course["semester"], off.get("default_time_slot") or "MIDDAY_11AM")
+        done = [s for s in mine if s["status"] == "COMPLETED"]
+        covered = {c for s in done for c in (s.get("covered_chunk_ids") or [])}
         sections.append({"offering_id": off["offering_id"], "section": off["section"], "time": SLOT_LABEL.get(off.get("default_time_slot"), ""),
                          "dip_minute": model["dip_trigger_minute"], "activity_splits": model["activity_splits"],
-                         "progress": plan["progress"], "sessions": [{
-                             "session_id": s["session_id"], "session_number": s["session_number"], "date": s["scheduled_date"],
-                             "status": s["status"], "session_type": s["session_type"], "duration": s["session_duration_mins"],
-                             "lecture_minutes": s["lecture_minutes_split"], "activity_minutes": s["activity_minutes_split"],
-                             "pacing_delta_mins": s["pacing_delta_mins"], "topics": [t["topic_title"] for t in s["planned_topics"]]}
-                             for s in plan["sessions"]]})
+                         "progress": {"sessions_completed": len(done), "sessions_total": len(mine), "chunks_covered": len(covered), "chunks_total": teachable,
+                                      "net_pacing_delta_mins": sum(s.get("pacing_delta_mins") or 0 for s in done)},
+                         "sessions": [{"session_id": s["session_id"], "session_number": s["session_number"], "date": s["scheduled_date"], "status": s["status"],
+                                       "session_type": s["session_type"], "duration": s["session_duration_mins"], "lecture_minutes": s["lecture_minutes_split"],
+                                       "activity_minutes": s["activity_minutes_split"], "pacing_delta_mins": s["pacing_delta_mins"],
+                                       "topics": [title[c] for c in dict.fromkeys(s.get("planned_chunk_ids") or []) if c in title]} for s in mine]})
     upload = one(db.table("syllabus_uploads").select("file_name, parse_engine, created_at").eq("course_id", course_id).order("created_at", desc=True))
     return {"course": course, "units": list(units.values()), "sections": sections, "upload": upload}
 

@@ -87,11 +87,15 @@ def transcribe(audio: bytes, mime: str) -> dict | None:
 
 
 def class_notes(session_number: int, date: str, chunks: list[dict], transcript: str | None, checkpoint: str | None) -> str | None:
-    prompt = (f"Write concise Markdown lecture notes for Session {session_number} ({date}). Structure: '# Session N Notes', one '##' "
-              "section per syllabus chunk with key ideas as bullets, a worked example only if the chunk text supports one, a "
-              "'## Key terms' list, and a '## Check your understanding' list of 3 questions. Cover only what the transcript shows "
-              "was taught; if no transcript is given, use the chunks." + (f" The teacher confirmed coverage manually at: {checkpoint}." if checkpoint else "")
-              + f"\n\nAPPROVED SYLLABUS CHUNKS:\n{_chunk_block(chunks)}\n\nLECTURE TRANSCRIPT:\n{(transcript or '(none)')[:6000]}")
+    prompt = (f"Write study notes a student can revise from for Session {session_number} ({date}). Markdown structure:\n"
+              "'# Session N: <short title>'; a 2-sentence '**In short**' summary; then one '##' section per topic with "
+              "2-4 short paragraphs that explain each idea clearly in plain language (use the syllabus wording, define every term), "
+              "a '**Worked example**' only when the topic is numeric or procedural and the syllabus supports it, and a "
+              "'> Remember' one-line callout; then '## Key terms' as a bulleted glossary (term: one-line meaning); then "
+              "'## Check yourself' with 3 numbered questions and their answers in italics. If the transcript mentions an "
+              "example or analogy the teacher used, include it. Only cover topics the teacher reports finishing."
+              + (f" The teacher confirmed coverage manually at: {checkpoint}." if checkpoint else "")
+              + f"\n\nAPPROVED SYLLABUS CHUNKS:\n{_chunk_block(chunks)}\n\nLECTURE TRANSCRIPT / TEACHER SUMMARY:\n{(transcript or '(none)')[:6000]}")
     return text(prompt)
 
 

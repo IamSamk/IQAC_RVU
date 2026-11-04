@@ -330,7 +330,8 @@ export function adaptGraph(raw: any): KnowledgeGraph {
     edges.push({ id: `${id}-a`, source: source.id, target: id, ...shared }, { id: `${id}-b`, source: id, target: target.id, ...shared });
   }
 
-  return { student_id: raw.student_id, nodes, edges };
+  const courses = (raw.courses ?? []).map((course: any) => ({ course_code: course.course_code, course_title: course.course_title }));
+  return { student_id: raw.student_id, nodes, edges, courses };
 }
 
 /* ---------- PYQ ---------- */

@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <section className={clsx("rounded-xl border border-slate-200 bg-white p-4 sm:p-5", className)}>{children}</section>;
+  return <section className={clsx("panel p-5 sm:p-6", className)}>{children}</section>;
 }
 
 export function CardHeader({
@@ -20,8 +20,8 @@ export function CardHeader({
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1 basis-64">
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-        {description && <p className="mt-1 text-sm leading-relaxed text-slate-600">{description}</p>}
+        <h2 className="text-[15px] font-semibold text-ink-950">{title}</h2>
+        {description && <p className="mt-1 text-sm leading-relaxed text-ink-500">{description}</p>}
       </div>
       {action}
     </div>
@@ -30,10 +30,10 @@ export function CardHeader({
 
 export function PageHeader({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0 flex-1 basis-72">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
-        <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">{description}</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-ink-950 sm:text-[2.35rem] sm:leading-tight">{title}</h1>
+        <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-ink-500">{description}</p>
       </div>
       {action}
     </div>
@@ -61,9 +61,9 @@ export function Badge({ tone = "neutral", className, children }: { tone?: Tone; 
 
 export function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="text-xs font-medium text-slate-600">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-slate-900">{value}</div>
+    <div className="rounded-xl border border-ink-100 bg-white p-3.5">
+      <div className="text-xs font-medium text-ink-500">{label}</div>
+      <div className="mt-1 font-display text-2xl font-semibold text-ink-950">{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-600">{hint}</div>}
     </div>
   );
@@ -124,21 +124,21 @@ export function Dialog({
         if (event.target === ref.current) onClose();
       }}
       className={clsx(
-        "bg-white p-0 text-slate-900 shadow-2xl",
-        variant === "center" && "m-auto w-[calc(100%-2rem)] max-w-2xl rounded-xl",
+        "bg-white p-0 text-ink-900 shadow-lift",
+        variant === "center" && "m-auto w-[calc(100%-2rem)] max-w-xl rounded-3xl",
         variant === "side" &&
           "my-0 ml-auto mr-0 h-dvh max-h-dvh w-full max-w-lg rounded-none",
       )}
     >
       {open && (
         <div className="flex max-h-[inherit] flex-col">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
-            <h2 className="text-base font-semibold">{title}</h2>
-            <button type="button" aria-label="Close" onClick={onClose} className="btn px-2 text-slate-600 hover:bg-slate-100">
+          <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-6 py-4">
+            <h2 className="font-display text-xl font-semibold">{title}</h2>
+            <button type="button" aria-label="Close" onClick={onClose} className="btn px-2 text-ink-500 hover:bg-ink-100">
               <X className="h-5 w-5" aria-hidden />
             </button>
           </div>
-          <div className="overflow-y-auto p-4">{children}</div>
+          <div className="overflow-y-auto px-6 py-5">{children}</div>
         </div>
       )}
     </dialog>

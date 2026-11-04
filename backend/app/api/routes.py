@@ -292,7 +292,8 @@ def end_session(session_id: str, body: EndSessionIn, actor: Actor = Depends(requ
         covered = body.covered_chunk_ids
     chunks = {c["chunk_id"]: c for c in rows(db.table("syllabus_chunks").select("*").in_("chunk_id", planned))} if planned else {}
     transcript = body.transcript or s.get("live_transcript_text")
-    notes = pacing.class_notes(s, [chunks[c] for c in planned if c in chunks], transcript, s.get("fallback_slide_checkpoint"), use_ai=True)
+    taught = [chunks[c] for c in (covered or planned) if c in chunks]
+    notes = pacing.class_notes(s, taught, transcript, s.get("fallback_slide_checkpoint"), use_ai=True)
     result = pacing.recalibrate_after(s, covered, body.minutes_behind, notes, transcript)
     audit(actor.user_id, "END_SESSION", "session_plans", session_id, {"covered": covered, "minutes_behind": body.minutes_behind})
     return {"session_id": session_id, "generated_class_notes_md": notes, "recalibration": result}

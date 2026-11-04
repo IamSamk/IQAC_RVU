@@ -56,7 +56,7 @@ const UNREACHABLE_TIMEOUT_MS = 5_000;
 const WRITE_TIMEOUT_MS = 150_000;
 const WRITE_UNREACHABLE_TIMEOUT_MS = 15_000;
 
-/** Stable IDs from the backend seed. */
+/** IDs the analytics views load. They start at the demo seed and switch to the signed-in user's course. */
 export const IDS = {
   offering: process.env.NEXT_PUBLIC_DEMO_OFFERING_ID || "40000000-0000-0000-0000-000000000001",
   course: process.env.NEXT_PUBLIC_DEMO_COURSE_ID || "30000000-0000-0000-0000-000000000001",
@@ -75,6 +75,12 @@ export interface ApiResult<T> {
 const OFFLINE = "the backend is offline";
 
 let actorId: string | null = null;
+let authToken: string | null = null;
+
+/** Signed login token; the backend prefers it over X-User-Id. */
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
 let reachable = true;
 
 /** The backend reads the current role from this header. */
@@ -109,7 +115,7 @@ async function send(path: string, init: RequestInit): Promise<Response> {
     try {
       const response = await fetch(`${API_URL}${path}`, {
         ...init,
-        headers: { ...init.headers, ...(actorId ? { "X-User-Id": actorId } : {}) },
+        headers: { ...init.headers, ...(actorId ? { "X-User-Id": actorId } : {}), ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         signal: AbortSignal.timeout(timeout),
       });
       if (response.status < 500 || last) return response;

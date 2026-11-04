@@ -28,8 +28,8 @@ export function KnowledgeGraphView() {
   return (
     <>
       <PageHeader
-        title="Cross-Subject Knowledge Graph"
-        description="Aarav's enrolled courses as chronological timelines, joined wherever the syllabus teaches the same idea. Select a topic to study it."
+        title="Your knowledge graph"
+        description="Every course you take, topic by topic, joined wherever two syllabi teach the same idea. Tap a topic for notes, flashcards and a quick quiz."
         action={
           <Badge tone="success" className="px-3 py-1.5">
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
@@ -40,12 +40,9 @@ export function KnowledgeGraphView() {
 
       <Card className="overflow-hidden !p-0">
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-b border-slate-200 px-4 py-2.5 text-xs text-slate-700">
-          {courses.map((course, index) => (
-            <span key={course} className="flex items-center gap-1.5">
-              <span className={`h-3 w-3 rounded border-2 ${index % 2 === 0 ? "border-brand-600" : "border-teal-600"}`} aria-hidden />
-              {course}
-            </span>
-          ))}
+          <span className="text-ink-500">Scroll to move around · tap a topic to study it</span>
+          {courses.length > 0 && <span className="text-ink-400">·</span>}
+          <span>{courses.join(" · ")}</span>
           <span className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded border-2 border-gold-500 bg-gold-100" aria-hidden />
             Cross-subject bridge ({bridges.length})
@@ -55,7 +52,7 @@ export function KnowledgeGraphView() {
             Weak in IA-1 ({weak.length})
           </span>
         </div>
-        <div className="h-[640px] w-full">
+        <div className="h-[720px] w-full bg-canvas/40">
           <GraphCanvas graph={graph} onSelect={setSelected} />
         </div>
       </Card>

@@ -187,6 +187,7 @@ export interface KnowledgeGraph {
   student_id: string;
   nodes: KGNode[];
   edges: KGEdge[];
+  courses?: { course_code: string; course_title: string }[];
 }
 
 export interface PyqQuestion {

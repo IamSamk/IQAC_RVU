@@ -1,218 +1,279 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronLeft, ChevronRight, Database, GraduationCap, PlayCircle, RotateCcw, Square } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  BookOpen,
+  CalendarCheck,
+  ClipboardCheck,
+  FileUp,
+  GanttChart,
+  LibraryBig,
+  LogOut,
+  Menu,
+  Network,
+  NotebookPen,
+  ShieldCheck,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { api, resetSources, useDataSource } from "@/lib/api";
-import { DEMO_STEPS } from "@/lib/demo";
-import { ROLES, RoleProvider, useRole } from "@/lib/rbac";
-import { supabase } from "@/lib/supabase";
-import type { RoleId } from "@/types";
+import { api, resetSources } from "@/lib/api";
+import { HOME_FOR, SessionProvider, useSession } from "@/lib/session";
+import type { Portal } from "@/types/app";
 
-const SOURCE_COPY = {
-  idle: { label: "Connecting", dot: "bg-slate-400" },
-  live: { label: "Live API", dot: "bg-success-500" },
-  mixed: { label: "Partly live", dot: "bg-gold-500" },
-  demo: { label: "Offline demo data", dot: "bg-gold-500" },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const NAV: Record<Portal, { title: string; items: NavItem[] }[]> = {
+  teacher: [
+    {
+      title: "Teach",
+      items: [
+        { href: "/teacher", label: "Today", icon: CalendarCheck },
+        { href: "/teacher/courses", label: "My courses", icon: BookOpen },
+        { href: "/teacher/upload", label: "Upload syllabus", icon: FileUp },
+      ],
+    },
+    {
+      title: "Insights",
+      items: [
+        { href: "/pacing", label: "Pacing studio", icon: GanttChart },
+        { href: "/live-class", label: "Attention lab", icon: Activity },
+        { href: "/evaluation", label: "Marks & co-pilot", icon: ClipboardCheck },
+      ],
+    },
+  ],
+  student: [
+    {
+      title: "Learn",
+      items: [
+        { href: "/student", label: "Today", icon: CalendarCheck },
+        { href: "/student/notes", label: "Class notes", icon: NotebookPen },
+        { href: "/knowledge-graph", label: "Knowledge graph", icon: Network },
+        { href: "/pyq", label: "Past papers", icon: LibraryBig },
+      ],
+    },
+  ],
+  admin: [
+    {
+      title: "Quality",
+      items: [
+        { href: "/admin", label: "IQAC compliance", icon: ShieldCheck },
+        { href: "/evaluation", label: "Marks & co-pilot", icon: ClipboardCheck },
+        { href: "/pacing", label: "Pacing studio", icon: GanttChart },
+        { href: "/live-class", label: "Attention lab", icon: BarChart3 },
+      ],
+    },
+  ],
 };
 
-function DataSourceBadge() {
-  const source = useDataSource();
-  const copy = SOURCE_COPY[source];
+const PUBLIC = ["/login"];
+const KEEP_AWAKE_MS = 10 * 60 * 1000;
+
+function Logo({ light = false }: { light?: boolean }) {
   return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full border border-white/25 px-2.5 py-1 text-xs text-white"
-      title={`Backend: ${copy.label}. Supabase client: ${supabase ? "configured" : "not configured"}.`}
-    >
-      <span className={clsx("h-2 w-2 rounded-full", copy.dot)} aria-hidden />
-      <Database className="h-3.5 w-3.5" aria-hidden />
-      {copy.label}
+    <span className="flex items-center gap-2.5">
+      <svg viewBox="0 0 32 32" className="h-8 w-8" aria-hidden>
+        <rect width="32" height="32" rx="9" fill={light ? "#F2A922" : "#5640E0"} />
+        <circle cx="10" cy="11" r="3" fill={light ? "#0E0C1D" : "#fff"} />
+        <circle cx="22" cy="10" r="2.4" fill={light ? "#0E0C1D" : "#fff"} opacity=".8" />
+        <circle cx="16" cy="22" r="3.4" fill={light ? "#0E0C1D" : "#fff"} />
+        <path d="M10 11 L16 22 L22 10" stroke={light ? "#0E0C1D" : "#fff"} strokeWidth="1.6" fill="none" opacity=".7" />
+      </svg>
+      <span className={clsx("font-display text-[22px] font-semibold tracking-tight", light ? "text-white" : "text-ink-950")}>
+        Campus<span className="text-gold-500">AI</span>
+      </span>
     </span>
   );
 }
 
-function RoleSwitcher({ onSwitch }: { onSwitch: (id: RoleId) => void }) {
-  const { role } = useRole();
+function initials(name: string) {
+  return name
+    .replace(/^(Prof|Dr|Mr|Ms)\.?\s+/i, "")
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function FocusPicker() {
+  const { courses, focus, setFocus } = useSession();
+  const router = useRouter();
+  const options = courses.flatMap((c) => c.sections.map((s) => ({ value: s.offering_id, label: `${c.course_code} · Section ${s.section}`, course: c, section: s.section })));
+  if (options.length === 0) return null;
   return (
-    <div role="radiogroup" aria-label="Demo role" className="flex gap-1.5 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
-      {ROLES.map((item) => {
-        const active = item.id === role.id;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onSwitch(item.id)}
-            className={clsx(
-              "min-h-[44px] w-56 shrink-0 rounded-lg border px-3 py-1.5 text-left transition-colors duration-150 focus-visible:outline-white lg:w-auto lg:min-w-0",
-              active ? "border-gold-500 bg-white text-slate-900" : "border-white/20 text-white hover:bg-white/10",
-            )}
-          >
-            <span className="flex items-center gap-1.5 text-sm font-semibold">
-              {item.short}
-              <span className={clsx("truncate font-normal", active ? "text-slate-700" : "text-indigo-100")}>· {item.name}</span>
-            </span>
-            <span className={clsx("block truncate text-xs", active ? "text-slate-600" : "text-indigo-200")}>{item.detail}</span>
-          </button>
-        );
-      })}
-    </div>
+    <label className="mx-3 mb-2 block">
+      <span className="mb-1 block px-1 text-[11px] text-ink-400">Showing insights for</span>
+      <select
+        className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+        value={focus?.offering_id ?? ""}
+        onChange={(e) => {
+          const o = options.find((x) => x.value === e.target.value);
+          if (!o) return;
+          setFocus({ course_id: o.course.course_id, offering_id: o.value, course_code: o.course.course_code, section: o.section });
+          router.refresh();
+          window.location.reload();
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value} className="text-ink-900">
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
-function DemoStepper({ onGoTo }: { onGoTo: (index: number) => void }) {
-  const [index, setIndex] = useState<number | null>(null);
-  const [resetting, setResetting] = useState(false);
+function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { user, logout } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
+  if (!user) return null;
+  const groups = NAV[user.portal];
 
-  const go = (next: number) => {
-    setIndex(next);
-    onGoTo(next);
-  };
-
-  const resetDemo = async () => {
-    setResetting(true);
-    await api.seedDemo();
-    window.location.assign("/");
-  };
-
-  if (index === null) {
-    return (
-      <button type="button" onClick={() => go(0)} className="btn-gold whitespace-nowrap">
-        <PlayCircle className="h-4 w-4" aria-hidden />
-        Run 10-Min Judge Demo Flow
-      </button>
-    );
-  }
-
-  const step = DEMO_STEPS[index];
   return (
-    <div className="w-full rounded-lg border border-gold-500/60 bg-brand-900 p-3 text-white lg:order-last">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1 basis-72" aria-live="polite">
-          <div className="text-xs text-amber-200">
-            Step {index + 1} of {DEMO_STEPS.length} · about {step.minutes} min
+    <div className="flex h-full flex-col bg-ink-950 text-ink-300">
+      <div className="px-5 pb-6 pt-6">
+        <Link href={HOME_FOR[user.portal]} onClick={onNavigate}>
+          <Logo light />
+        </Link>
+      </div>
+      <nav className="flex-1 space-y-6 overflow-y-auto px-2" aria-label="Main">
+        {groups.map((group) => (
+          <div key={group.title}>
+            <div className="mb-1.5 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">{group.title}</div>
+            {group.title === "Insights" && <FocusPicker />}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => {
+                const active = item.href === pathname || (item.href !== HOME_FOR[user.portal] && pathname.startsWith(item.href + "/"));
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onNavigate}
+                      aria-current={active ? "page" : undefined}
+                      className={clsx(
+                        "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
+                        active ? "bg-white/10 text-white" : "text-ink-300 hover:bg-white/5 hover:text-white",
+                      )}
+                    >
+                      <Icon className={clsx("h-[18px] w-[18px]", active ? "text-gold-500" : "text-ink-400 group-hover:text-ink-200")} aria-hidden />
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <div className="text-sm font-semibold">{step.title}</div>
-          <p className="mt-0.5 text-sm text-indigo-100">{step.action}</p>
+        ))}
+      </nav>
+      <div className="m-3 rounded-2xl bg-white/5 p-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">{initials(user.full_name)}</span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-white">{user.full_name}</div>
+            <div className="truncate text-xs text-ink-400">
+              {user.portal === "student" ? `${user.institution_id} · Sec ${user.section ?? "-"}` : user.portal === "admin" ? "IQAC" : user.department ?? "Faculty"}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn border border-white/30 text-white hover:bg-white/10" disabled={index === 0} onClick={() => go(index - 1)}>
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-            Back
-          </button>
-          {index < DEMO_STEPS.length - 1 ? (
-            <button type="button" className="btn-gold" onClick={() => go(index + 1)}>
-              Next
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
-          ) : (
-            <button type="button" className="btn-gold" onClick={() => setIndex(null)}>
-              Finish
-            </button>
-          )}
-          <button type="button" className="btn border border-white/30 text-white hover:bg-white/10" disabled={resetting} onClick={resetDemo}>
-            <RotateCcw className="h-4 w-4" aria-hidden />
-            {resetting ? "Resetting" : "Reset"}
-          </button>
-          <button type="button" aria-label="Exit demo flow" className="btn border border-white/30 text-white hover:bg-white/10" onClick={() => setIndex(null)}>
-            <Square className="h-4 w-4" aria-hidden />
-            Exit
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            router.replace("/login");
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 py-1.5 text-xs font-medium text-ink-300 hover:bg-white/10 hover:text-white"
+        >
+          <LogOut className="h-3.5 w-3.5" aria-hidden />
+          Sign out
+        </button>
       </div>
     </div>
   );
 }
 
-/** Often enough that a free Render service does not go to sleep mid-demo. */
-const KEEP_AWAKE_MS = 10 * 60 * 1000;
-
 function Shell({ children }: { children: ReactNode }) {
-  const { role, setRole } = useRole();
+  const { user, ready } = useSession();
   const pathname = usePathname();
   const router = useRouter();
-  const source = useDataSource();
+  const [open, setOpen] = useState(false);
+  const isPublic = PUBLIC.includes(pathname);
 
   useEffect(() => {
     resetSources();
+    setOpen(false);
   }, [pathname]);
 
   useEffect(() => {
+    void api.ping();
     const timer = window.setInterval(() => void api.ping(), KEEP_AWAKE_MS);
     return () => window.clearInterval(timer);
   }, []);
 
-  const switchRole = (id: RoleId) => {
-    const next = ROLES.find((item) => item.id === id);
-    if (!next) return;
-    setRole(id);
-    if (!next.routes.some((route) => route.href === pathname)) router.push(next.routes[0].href);
-  };
+  useEffect(() => {
+    if (!ready) return;
+    if (!user && !isPublic) router.replace("/login");
+    if (user && (isPublic || pathname === "/")) router.replace(HOME_FOR[user.portal]);
+  }, [ready, user, isPublic, pathname, router]);
 
-  const goToStep = (index: number) => {
-    const step = DEMO_STEPS[index];
-    setRole(step.role);
-    if (step.href !== pathname) router.push(step.href);
-  };
+  if (isPublic) return <>{children}</>;
+  if (!ready || !user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Logo />
+          <div className="h-1 w-40 overflow-hidden rounded-full bg-ink-100">
+            <div className="h-full w-1/3 animate-[shimmer_1.2s_linear_infinite] rounded-full bg-brand-500" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <header className="bg-brand-950 text-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2 font-semibold focus-visible:outline-white">
-            <GraduationCap className="h-6 w-6 text-gold-500" aria-hidden />
-            <span className="text-lg tracking-tight">CampusAI</span>
-          </Link>
-          <div className="flex flex-wrap items-center gap-2 lg:contents">
-            <div className="lg:order-1 lg:ml-auto">
-              <DataSourceBadge />
-            </div>
-            <div className="contents lg:order-2">
-              <DemoStepper onGoTo={goToStep} />
-            </div>
-          </div>
-          <div className="w-full lg:order-last">
-            <RoleSwitcher onSwitch={switchRole} />
-          </div>
-        </div>
+    <div className="min-h-screen lg:pl-64">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">
+        <Sidebar />
+      </aside>
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-ink-100 bg-canvas/90 px-4 py-3 backdrop-blur lg:hidden">
+        <Logo />
+        <button type="button" className="btn-ghost px-2" aria-label="Open menu" onClick={() => setOpen(true)}>
+          <Menu className="h-5 w-5" />
+        </button>
       </header>
-      <nav aria-label="Portal views" className="sticky top-0 z-20 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4">
-          {role.routes.map((route) => {
-            const active = route.href === pathname;
-            return (
-              <Link
-                key={route.href}
-                href={route.href}
-                aria-current={active ? "page" : undefined}
-                className={clsx(
-                  "flex min-h-[44px] items-center whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150",
-                  active ? "border-brand-600 text-brand-700" : "border-transparent text-slate-600 hover:text-slate-900",
-                )}
-              >
-                {route.label}
-              </Link>
-            );
-          })}
+      {open && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <button type="button" aria-label="Close menu" className="absolute inset-0 bg-ink-950/50" onClick={() => setOpen(false)} />
+          <div className="absolute inset-y-0 left-0 w-72 shadow-lift">
+            <Sidebar onNavigate={() => setOpen(false)} />
+            <button type="button" aria-label="Close menu" className="absolute right-3 top-6 text-ink-300" onClick={() => setOpen(false)}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-      </nav>
-      {source === "idle" && (
-        <p role="status" className="border-b border-amber-200 bg-gold-50 px-4 py-1.5 text-center text-xs text-gold-700">
-          Connecting to the live backend. It can take up to a minute to wake, and demo data shows until then.
-        </p>
       )}
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:py-6">{children}</main>
-    </>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-10">{children}</main>
+    </div>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <RoleProvider>
+    <SessionProvider>
       <Shell>{children}</Shell>
-    </RoleProvider>
+    </SessionProvider>
   );
 }
+
+export { Logo };

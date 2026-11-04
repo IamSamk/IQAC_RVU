@@ -1,175 +1,393 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
+import {
+  Background,
+  Controls,
+  Handle,
+  Position,
+  ReactFlow,
+  type Edge,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
 import clsx from "clsx";
-import { AlertCircle, Link2 } from "lucide-react";
-import { useMemo } from "react";
-import { CHART } from "@/lib/chart";
+import { AlertCircle, CheckCircle2, Link2 } from "lucide-react";
+import { useMemo, useRef } from "react";
 import type { KGNode, KnowledgeGraph } from "@/types";
 
-const COLUMN = 215;
-const ROW_GAP = 460;
-const BRIDGE_ROW_Y = 265;
-const CHUNK_WIDTH = 180;
-const BRIDGE_WIDTH = 210;
+/* Course columns, topics stacked by unit, cross-course bridges in the gutters between columns. */
+const COL_W = 224;
+const GUTTER = 214;
+const TOPIC_H = 74;
+const UNIT_GAP = 34;
+const HEADER_H = 96;
+const BRIDGE_W = 184;
 
-interface FlowData extends Record<string, unknown> {
+export const COURSE_COLORS = [
+  { bar: "#5640E0", soft: "#F3F1FF", text: "#4430C4" },
+  { bar: "#0D9488", soft: "#E6FAF7", text: "#0F766E" },
+  { bar: "#DB2777", soft: "#FDF0F6", text: "#BE185D" },
+  { bar: "#2563EB", soft: "#EEF4FF", text: "#1D4ED8" },
+];
+
+interface TopicData extends Record<string, unknown> {
   node: KGNode;
-  courseIndex: number;
+  color: (typeof COURSE_COLORS)[number];
+}
+interface HeaderData extends Record<string, unknown> {
+  code: string;
+  title: string;
+  topics: number;
+  color: (typeof COURSE_COLORS)[number];
+}
+interface UnitData extends Record<string, unknown> {
+  label: string;
+}
+interface BridgeData extends Record<string, unknown> {
+  node: KGNode;
   similarity?: number;
 }
-type FlowNode = Node<FlowData, "chunk" | "bridge">;
 
-const hiddenHandle = "!h-1 !min-h-0 !w-1 !min-w-0 !border-0 !bg-transparent";
-
+const hidden = "!h-1 !min-h-0 !w-1 !min-w-0 !border-0 !bg-transparent";
 function Handles() {
   return (
     <>
-      <Handle id="left" type="target" position={Position.Left} className={hiddenHandle} isConnectable={false} />
-      <Handle id="right" type="source" position={Position.Right} className={hiddenHandle} isConnectable={false} />
-      <Handle id="top-in" type="target" position={Position.Top} className={hiddenHandle} isConnectable={false} />
-      <Handle id="top-out" type="source" position={Position.Top} className={hiddenHandle} isConnectable={false} />
-      <Handle id="bottom-in" type="target" position={Position.Bottom} className={hiddenHandle} isConnectable={false} />
-      <Handle id="bottom-out" type="source" position={Position.Bottom} className={hiddenHandle} isConnectable={false} />
+      <Handle
+        id="l-in"
+        type="target"
+        position={Position.Left}
+        className={hidden}
+        isConnectable={false}
+      />
+      <Handle
+        id="l-out"
+        type="source"
+        position={Position.Left}
+        className={hidden}
+        isConnectable={false}
+      />
+      <Handle
+        id="r-in"
+        type="target"
+        position={Position.Right}
+        className={hidden}
+        isConnectable={false}
+      />
+      <Handle
+        id="r-out"
+        type="source"
+        position={Position.Right}
+        className={hidden}
+        isConnectable={false}
+      />
+      <Handle
+        id="t-in"
+        type="target"
+        position={Position.Top}
+        className={hidden}
+        isConnectable={false}
+      />
+      <Handle
+        id="b-out"
+        type="source"
+        position={Position.Bottom}
+        className={hidden}
+        isConnectable={false}
+      />
     </>
   );
 }
 
-function ChunkNode({ data }: NodeProps<FlowNode>) {
-  const { node, courseIndex } = data;
-  const teal = courseIndex % 2 === 1;
+function TopicNode({ data }: NodeProps<Node<TopicData>>) {
+  const { node, color } = data;
   return (
     <div
-      style={{ width: CHUNK_WIDTH }}
+      style={{ width: COL_W, borderLeftColor: color.bar }}
       className={clsx(
-        "cursor-pointer rounded-lg border-2 bg-white p-2.5 text-left transition-colors duration-150",
-        teal ? "border-teal-600 hover:bg-teal-100" : "border-brand-600 hover:bg-brand-50",
-        node.weak && "animate-halo-pulse ring-2 ring-red-500",
+        "group cursor-pointer rounded-xl border border-l-[5px] border-ink-100 bg-white px-3 py-2.5 shadow-card transition hover:-translate-y-0.5 hover:shadow-lift",
+        node.weak && "animate-halo-pulse",
       )}
     >
       <Handles />
-      <div className={clsx("text-[11px] font-semibold", teal ? "text-teal-700" : "text-brand-700")}>
-        {node.course_code}
-        {node.when ? ` · ${node.when}` : ""}
+      <div className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink-950">
+        {node.title}
       </div>
-      <div className="mt-0.5 text-xs font-medium leading-snug text-slate-900">{node.title}</div>
-      <div className="mt-1 text-[11px] text-slate-600">
-        Unit {node.unit}, Chunk {node.chunk}
+      <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-500">
+        <span>
+          U{node.unit}·{node.chunk}
+        </span>
+        {node.when && (
+          <span className="inline-flex items-center gap-0.5 text-success-700">
+            <CheckCircle2 className="h-3 w-3" /> taught
+          </span>
+        )}
+        {node.weak && (
+          <span className="inline-flex items-center gap-0.5 font-medium text-critical-700">
+            <AlertCircle className="h-3 w-3" /> revise
+          </span>
+        )}
       </div>
-      {node.weak && (
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-critical-700">
-          <AlertCircle className="h-3 w-3" aria-hidden />
-          {node.weak_reason ?? "Needs revision"}
+    </div>
+  );
+}
+
+function HeaderNode({ data }: NodeProps<Node<HeaderData>>) {
+  return (
+    <div
+      style={{ width: COL_W, background: data.color.soft }}
+      className="rounded-2xl px-4 py-3"
+    >
+      <div
+        className="font-mono text-xs font-bold"
+        style={{ color: data.color.text }}
+      >
+        {data.code}
+      </div>
+      <div className="mt-0.5 line-clamp-2 font-display text-[17px] font-semibold leading-tight text-ink-950">
+        {data.title}
+      </div>
+      <div className="mt-1 text-[11px] text-ink-500">{data.topics} topics</div>
+    </div>
+  );
+}
+
+function UnitNode({ data }: NodeProps<Node<UnitData>>) {
+  return (
+    <div className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400">
+      {data.label}
+    </div>
+  );
+}
+
+function BridgeNode({ data }: NodeProps<Node<BridgeData>>) {
+  return (
+    <div
+      style={{ width: BRIDGE_W }}
+      className="animate-bridge-glow cursor-pointer rounded-2xl border-2 border-gold-500 bg-gold-50 px-3 py-2.5 text-center transition hover:bg-gold-100"
+    >
+      <Handles />
+      <div className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gold-700">
+        <Link2 className="h-3 w-3" /> Connects
+      </div>
+      <div className="mt-0.5 line-clamp-2 text-[12.5px] font-semibold leading-snug text-ink-950">
+        {data.node.title}
+      </div>
+      {data.similarity !== undefined && (
+        <div className="mt-0.5 text-[10px] text-gold-700">
+          match {Math.round(data.similarity * 100)}%
         </div>
       )}
     </div>
   );
 }
 
-function BridgeNode({ data }: NodeProps<FlowNode>) {
-  return (
-    <div
-      style={{ width: BRIDGE_WIDTH }}
-      className="animate-bridge-glow cursor-pointer rounded-xl border-2 border-gold-500 bg-gold-100 p-3 text-center shadow-[0_0_14px_4px_rgba(245,158,11,0.55)] transition-colors duration-150 hover:bg-amber-200"
-    >
-      <Handles />
-      <div className="flex items-center justify-center gap-1 text-[11px] font-semibold text-gold-700">
-        <Link2 className="h-3 w-3" aria-hidden />
-        Cross-subject bridge
-      </div>
-      <div className="mt-0.5 text-xs font-semibold leading-snug text-slate-900">{data.node.title}</div>
-      {data.similarity !== undefined && <div className="mt-1 text-[11px] font-medium text-gold-700">Similarity {data.similarity.toFixed(2)}</div>}
-    </div>
+const nodeTypes = {
+  topic: TopicNode,
+  header: HeaderNode,
+  unit: UnitNode,
+  bridge: BridgeNode,
+};
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, i) =>
+    permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [
+      item,
+      ...rest,
+    ]),
   );
 }
 
-const nodeTypes = { chunk: ChunkNode, bridge: BridgeNode };
+function layout(graph: KnowledgeGraph) {
+  const chunks = graph.nodes.filter((n) => n.kind === "chunk");
+  const bridges = graph.nodes.filter((n) => n.kind === "bridge");
+  const courseOf = new Map(chunks.map((n) => [n.id, n.course_code]));
+  const ends = (bridgeId: string) =>
+    graph.edges
+      .filter((e) => e.source === bridgeId || e.target === bridgeId)
+      .map((e) => (e.source === bridgeId ? e.target : e.source));
 
-/** Courses become chronological rows, with bridge nodes between the chunks they join. */
-function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[]; focus: { id: string }[] } {
-  const chunks = graph.nodes.filter((node) => node.kind === "chunk");
-  const courses = [...new Set(chunks.map((node) => node.course_code))];
-  const positions = new Map<string, { x: number; y: number }>();
-  const nodes: FlowNode[] = [];
+  // Put the most-connected courses next to each other.
+  let courses = [...new Set(chunks.map((n) => n.course_code))];
+  const pairCount = (a: string, b: string) =>
+    bridges.filter((br) => {
+      const cs = ends(br.id).map((id) => courseOf.get(id));
+      return cs.includes(a) && cs.includes(b);
+    }).length;
+  if (courses.length <= 6) {
+    courses = permutations(courses).reduce(
+      (best, order) => {
+        const score = order
+          .slice(1)
+          .reduce((s, c, i) => s + pairCount(order[i], c), 0);
+        return score > best.score ? { order, score } : best;
+      },
+      { order: courses, score: -1 },
+    ).order;
+  }
 
-  courses.forEach((course, courseIndex) => {
-    chunks
-      .filter((node) => node.course_code === course)
-      .sort((a, b) => a.unit - b.unit || a.chunk - b.chunk)
-      .forEach((node, index) => {
-        const position = { x: index * COLUMN, y: courseIndex * ROW_GAP };
-        positions.set(node.id, position);
-        nodes.push({ id: node.id, type: "chunk", position, data: { node, courseIndex }, ariaLabel: `${node.course_code}: ${node.title}` });
+  const titles = new Map(
+    (graph.courses ?? []).map((c) => [c.course_code, c.course_title]),
+  );
+  const colX = (i: number) => i * (COL_W + GUTTER);
+  const pos = new Map<string, { x: number; y: number; col: number }>();
+  const nodes: Node[] = [];
+
+  courses.forEach((code, col) => {
+    const color = COURSE_COLORS[col % COURSE_COLORS.length];
+    const mine = chunks
+      .filter((n) => n.course_code === code)
+      .sort((a, b) => a.unit - b.unit || a.chunk - b.chunk);
+    nodes.push({
+      id: `h-${code}`,
+      type: "header",
+      position: { x: colX(col), y: 0 },
+      data: {
+        code,
+        title: titles.get(code) ?? code,
+        topics: mine.length,
+        color,
+      },
+      selectable: false,
+      draggable: false,
+    });
+    let y = HEADER_H + 10;
+    let unit = -1;
+    mine.forEach((n) => {
+      if (n.unit !== unit) {
+        if (unit !== -1) y += UNIT_GAP - 16;
+        unit = n.unit;
+        nodes.push({
+          id: `u-${code}-${unit}`,
+          type: "unit",
+          position: { x: colX(col), y },
+          data: { label: `Unit ${unit}` },
+          selectable: false,
+          draggable: false,
+        });
+        y += 20;
+      }
+      pos.set(n.id, { x: colX(col), y, col });
+      nodes.push({
+        id: n.id,
+        type: "topic",
+        position: { x: colX(col), y },
+        data: { node: n, color },
+        ariaLabel: `${code}: ${n.title}`,
       });
+      y += TOPIC_H;
+    });
   });
 
-  const neighbours = (id: string) =>
-    graph.edges.filter((edge) => edge.source === id || edge.target === id).map((edge) => (edge.source === id ? edge.target : edge.source));
-
-  const bridges = graph.nodes.filter((node) => node.kind === "bridge");
-  const bridgeNodes: FlowNode[] = bridges
-    .map((node, index) => {
-      const linked = neighbours(node.id)
-        .map((id) => positions.get(id))
-        .filter((position): position is { x: number; y: number } => Boolean(position));
-      const x = linked.length ? linked.reduce((sum, position) => sum + position.x, 0) / linked.length : index * COLUMN;
-      const similarity = graph.edges.find((edge) => edge.source === node.id || edge.target === node.id)?.similarity_score;
-      return { id: node.id, type: "bridge" as const, position: { x, y: BRIDGE_ROW_Y }, data: { node, courseIndex: -1, similarity }, ariaLabel: `Bridge: ${node.title}` };
+  // Bridges sit in the gutter on the side facing the other course, stacked so they never overlap.
+  const placed: { x: number; y: number }[] = [];
+  const edges: Edge[] = [];
+  const bridgeNodes = bridges
+    .map((br) => {
+      const [a, b] = ends(br.id).map((id) => pos.get(id));
+      if (!a || !b) return null;
+      const [left, right] = a.col <= b.col ? [a, b] : [b, a];
+      const gutterCol = right.col - 1 >= left.col ? right.col - 1 : left.col;
+      return {
+        br,
+        x: colX(gutterCol) + COL_W + (GUTTER - BRIDGE_W) / 2,
+        y: (a.y + b.y) / 2,
+        left,
+        right,
+      };
     })
-    .sort((a, b) => a.position.x - b.position.x);
+    .filter((v): v is NonNullable<typeof v> => v !== null)
+    .sort((p, q) => p.y - q.y);
 
-  // Bridge nodes share one row, so push them apart if their midpoints overlap.
-  bridgeNodes.forEach((node, index) => {
-    if (index === 0) return;
-    const minimum = bridgeNodes[index - 1].position.x + BRIDGE_WIDTH + 40;
-    if (node.position.x < minimum) node.position.x = minimum;
-  });
-  nodes.push(...bridgeNodes);
+  for (const b of bridgeNodes) {
+    let y = b.y;
+    while (placed.some((p) => p.x === b.x && Math.abs(p.y - y) < 86)) y += 90;
+    placed.push({ x: b.x, y });
+    const sim = graph.edges.find(
+      (e) => e.source === b.br.id || e.target === b.br.id,
+    )?.similarity_score;
+    nodes.push({
+      id: b.br.id,
+      type: "bridge",
+      position: { x: b.x, y },
+      data: { node: b.br, similarity: sim },
+      ariaLabel: `Connection: ${b.br.title}`,
+    });
+  }
 
-  const rowOf = (id: string) => nodes.find((node) => node.id === id)?.position.y ?? 0;
-
-  const edges: Edge[] = graph.edges.map((edge) => {
-    const isBridge = edge.edge_type === "CROSS_SUBJECT_BRIDGE";
-    const downward = rowOf(edge.source) < rowOf(edge.target);
-    return {
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      sourceHandle: isBridge ? (downward ? "bottom-out" : "top-out") : "right",
-      targetHandle: isBridge ? (downward ? "top-in" : "bottom-in") : "left",
-      type: isBridge ? "default" : "straight",
-      animated: isBridge,
-      style: { stroke: isBridge ? CHART.amber : "#94A3B8", strokeWidth: isBridge ? 2 : 1.5 },
-      markerEnd: isBridge ? undefined : { type: MarkerType.ArrowClosed, color: "#94A3B8" },
-    };
-  });
-
-  // Open on the start of each timeline and the bridges, not a whole semester of tiny nodes.
-  const courseStarts = nodes.filter((node) => node.type === "chunk" && node.position.x === 0).map((node) => node.id);
-  const focusIds = [...courseStarts, ...bridges.flatMap((node) => [node.id, ...neighbours(node.id)])];
-  return { nodes, edges, focus: focusIds.map((id) => ({ id })) };
+  for (const e of graph.edges) {
+    if (e.edge_type === "CROSS_SUBJECT_BRIDGE") {
+      const bridgeId = e.source.startsWith("bridge-") ? e.source : e.target;
+      const topicId = bridgeId === e.source ? e.target : e.source;
+      const t = pos.get(topicId);
+      const bn = nodes.find((n) => n.id === bridgeId);
+      if (!t || !bn) continue;
+      const topicLeftOfBridge = t.x < bn.position.x;
+      edges.push({
+        id: e.id,
+        source: topicId,
+        target: bridgeId,
+        sourceHandle: topicLeftOfBridge ? "r-out" : "l-out",
+        targetHandle: topicLeftOfBridge ? "l-in" : "r-in",
+        type: "default",
+        animated: true,
+        style: { stroke: "#F2A922", strokeWidth: 2.5 },
+      });
+    }
+  }
+  return { nodes, edges };
 }
 
-export default function GraphCanvas({ graph, onSelect }: { graph: KnowledgeGraph; onSelect: (node: KGNode) => void }) {
-  const { nodes, edges, focus } = useMemo(() => layout(graph), [graph]);
+export default function GraphCanvas({
+  graph,
+  onSelect,
+}: {
+  graph: KnowledgeGraph;
+  onSelect: (node: KGNode) => void;
+}) {
+  const { nodes, edges } = useMemo(() => layout(graph), [graph]);
+  const box = useRef<HTMLDivElement>(null);
+  const width = useMemo(
+    () =>
+      Math.max(
+        COL_W,
+        ...nodes.map(
+          (n) => n.position.x + (n.type === "bridge" ? BRIDGE_W : COL_W),
+        ),
+      ),
+    [nodes],
+  );
   return (
-    <ReactFlow
-      key={graph.nodes.length}
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={nodeTypes}
-      onNodeClick={(_, node) => onSelect((node as FlowNode).data.node)}
-      nodesDraggable={false}
-      nodesConnectable={false}
-      edgesFocusable={false}
-      fitView
-      fitViewOptions={{ padding: 0.12, nodes: focus.length ? focus : undefined }}
-      minZoom={0.25}
-      maxZoom={1.6}
-    >
-      <Background color="#E2E8F0" gap={24} />
-      <Controls showInteractive={false} orientation="horizontal" fitViewOptions={{ padding: 0.05 }} />
-    </ReactFlow>
+    <div ref={box} className="h-full w-full">
+      <ReactFlow
+        key={graph.nodes.length}
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodeClick={(_, node) => {
+          const data = node.data as { node?: KGNode };
+          if (data.node) onSelect(data.node);
+        }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        edgesFocusable={false}
+        panOnScroll
+        zoomOnScroll={false}
+        zoomOnPinch
+        onInit={(flow) => {
+          // Fit the columns to the width and start at the top, so topic titles are readable straight away.
+          const w = box.current?.clientWidth ?? 900;
+          const zoom = Math.min(1.1, Math.max(0.35, (w - 48) / width));
+          flow.setViewport({ x: (w - width * zoom) / 2, y: 20, zoom });
+        }}
+        minZoom={0.3}
+        maxZoom={1.5}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background color="#DCD9E6" gap={22} size={1.2} />
+        <Controls showInteractive={false} orientation="horizontal" />
+      </ReactFlow>
+    </div>
   );
 }
