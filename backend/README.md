@@ -85,3 +85,13 @@ Demo state after seeding: CS304 sessions 1-12 completed (session 12 ran 15 min b
 - Real OCR / vision and Whisper ASR: the upload endpoints accept files but use the sample cases / slide fallback.
 - Google Sheets, Classroom, Mentimeter, Kahoot calls are mock payloads.
 - `embedding vector(1536)` columns are unused; similarity is TF-IDF over syllabus text.
+
+## Testing
+
+```bash
+# from the repo root; resets the shared demo data before and after
+API=http://localhost:8000/api/v1 backend/.venv/Scripts/python backend/tests/smoke_test.py
+API=https://campusai-backend-ak60.onrender.com/api/v1 python backend/tests/smoke_test.py
+```
+
+23 end-to-end checks across all four agents, RBAC (a student gets 403 on mark approval) and the audit log. Exits non-zero on any failure.
