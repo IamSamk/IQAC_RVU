@@ -7,6 +7,7 @@ import type {
   CoAttainment,
   ComplianceData,
   CopilotTask,
+  Flashcard,
   KGEdge,
   KGNode,
   KnowledgeGraph,
@@ -33,7 +34,13 @@ import type {
 const COURSE_LEAD_ID = "20000000-0000-0000-0000-000000000004";
 const IA_LOOKAHEAD_SESSIONS = 6;
 
-const titleCase = (text: string) => text.replace(/\b\w/g, (letter) => letter.toUpperCase());
+const SPECIAL_TERMS: Record<string, string> = { iso: "ISO", sift: "SIFT", hdr: "HDR", dslr: "DSLR", raw: "RAW", ransac: "RANSAC", opencv: "OpenCV", cnn: "CNN" };
+
+/** Syllabus keywords arrive in lower or naive title case, which mangles acronyms. */
+const titleCase = (text: string) =>
+  text.replace(/\b\w+/g, (word) => SPECIAL_TERMS[word.toLowerCase()] ?? word.charAt(0).toUpperCase() + word.slice(1));
+
+const uniqueByFront = (cards: Flashcard[]) => [...new Map(cards.map((card) => [card.front, card])).values()];
 
 function need<T>(value: T | null | undefined, name: string): T {
   if (value === null || value === undefined) throw new Error(`Missing ${name}`);
@@ -240,7 +247,8 @@ function notesFor(raw: any): string {
 }
 
 function adaptNode(raw: any): KGNode {
-  const session = raw.drawer?.class_notes?.[0]?.session_number;
+  const taught: number[] = (raw.drawer?.class_notes ?? []).map((note: any) => note.session_number);
+  const session = taught.length ? Math.min(...taught) : null;
   return {
     id: need(raw.id, "node id"),
     kind: "chunk",
@@ -253,7 +261,7 @@ function adaptNode(raw: any): KGNode {
     weak_reason: raw.is_weak ? "Lost marks in IA-1" : undefined,
     notes_md: notesFor(raw),
     applied_example: raw.drawer?.applied_cross_course_example ?? null,
-    flashcards: (raw.drawer?.flashcards ?? []).map((card: any) => ({ front: card.front, back: card.back })),
+    flashcards: (raw.drawer?.flashcards ?? []).map((card: any) => ({ front: titleCase(card.front), back: card.back })),
     quiz: (raw.drawer?.quick_quiz ?? []).map(adaptQuestion),
   };
 }
@@ -284,7 +292,7 @@ export function adaptGraph(raw: any): KnowledgeGraph {
       weak: false,
       notes_md: `${source.course_code} Unit ${source.unit}, Chunk ${source.chunk}: ${source.title}\n\n${target.course_code} Unit ${target.unit}, Chunk ${target.chunk}: ${target.title}`,
       applied_example: bridge.grounded_application_example ?? null,
-      flashcards: [...source.flashcards.slice(0, 2), ...target.flashcards.slice(0, 2)],
+      flashcards: uniqueByFront([...source.flashcards, ...target.flashcards]).slice(0, 4),
       quiz: [...source.quiz.slice(0, 2), ...target.quiz.slice(0, 1)],
     });
     const shared = { edge_type: "CROSS_SUBJECT_BRIDGE" as const, similarity_score: bridge.similarity_score, shared_concepts: bridge.shared_concepts };
@@ -404,7 +412,7 @@ export function adaptTasks(raw: any[]): CopilotTask[] {
       task_title: task.task_title,
       due_timestamp: task.due_timestamp,
       tool_call_name: task.tool_call_name,
-      summary: typeof payload.summary === "string" ? payload.summary : `${course ? `${course}: ` : ""}draft prepared by ${humanize(task.tool_call_name)}.`,
+      summary: typeof payload.summary === "string" ? payload.summary : `${course ? `${course}: ` : ""}draft ready for your review.`,
       pre_executed_draft_payload: payload,
       status: task.status,
     };

@@ -9,13 +9,15 @@ import { CHART } from "@/lib/chart";
 import type { KGNode, KnowledgeGraph } from "@/types";
 
 const COLUMN = 215;
-const ROW_GAP = 370;
+const ROW_GAP = 460;
+const BRIDGE_ROW_Y = 265;
 const CHUNK_WIDTH = 180;
 const BRIDGE_WIDTH = 210;
 
 interface FlowData extends Record<string, unknown> {
   node: KGNode;
   courseIndex: number;
+  similarity?: number;
 }
 type FlowNode = Node<FlowData, "chunk" | "bridge">;
 
@@ -43,7 +45,7 @@ function ChunkNode({ data }: NodeProps<FlowNode>) {
       className={clsx(
         "cursor-pointer rounded-lg border-2 bg-white p-2.5 text-left transition-colors duration-150",
         teal ? "border-teal-600 hover:bg-teal-100" : "border-brand-600 hover:bg-brand-50",
-        node.weak && "animate-halo-pulse",
+        node.weak && "animate-halo-pulse ring-2 ring-red-500",
       )}
     >
       <Handles />
@@ -67,13 +69,17 @@ function ChunkNode({ data }: NodeProps<FlowNode>) {
 
 function BridgeNode({ data }: NodeProps<FlowNode>) {
   return (
-    <div style={{ width: BRIDGE_WIDTH }} className="animate-bridge-glow cursor-pointer rounded-xl border-2 border-gold-500 bg-gold-100 p-3 text-center transition-colors duration-150 hover:bg-amber-200">
+    <div
+      style={{ width: BRIDGE_WIDTH }}
+      className="animate-bridge-glow cursor-pointer rounded-xl border-2 border-gold-500 bg-gold-100 p-3 text-center shadow-[0_0_14px_4px_rgba(245,158,11,0.55)] transition-colors duration-150 hover:bg-amber-200"
+    >
       <Handles />
       <div className="flex items-center justify-center gap-1 text-[11px] font-semibold text-gold-700">
         <Link2 className="h-3 w-3" aria-hidden />
         Cross-subject bridge
       </div>
       <div className="mt-0.5 text-xs font-semibold leading-snug text-slate-900">{data.node.title}</div>
+      {data.similarity !== undefined && <div className="mt-1 text-[11px] font-medium text-gold-700">Similarity {data.similarity.toFixed(2)}</div>}
     </div>
   );
 }
@@ -108,7 +114,8 @@ function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[]; focu
         .map((id) => positions.get(id))
         .filter((position): position is { x: number; y: number } => Boolean(position));
       const x = linked.length ? linked.reduce((sum, position) => sum + position.x, 0) / linked.length : index * COLUMN;
-      return { id: node.id, type: "bridge" as const, position: { x, y: ROW_GAP / 2 - 30 }, data: { node, courseIndex: -1 }, ariaLabel: `Bridge: ${node.title}` };
+      const similarity = graph.edges.find((edge) => edge.source === node.id || edge.target === node.id)?.similarity_score;
+      return { id: node.id, type: "bridge" as const, position: { x, y: BRIDGE_ROW_Y }, data: { node, courseIndex: -1, similarity }, ariaLabel: `Bridge: ${node.title}` };
     })
     .sort((a, b) => a.position.x - b.position.x);
 
@@ -133,16 +140,14 @@ function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[]; focu
       targetHandle: isBridge ? (downward ? "top-in" : "bottom-in") : "left",
       type: isBridge ? "default" : "straight",
       animated: isBridge,
-      label: isBridge && edge.similarity_score !== undefined && rowOf(edge.source) === 0 ? `sim ${edge.similarity_score.toFixed(2)}` : undefined,
-      labelStyle: { fontSize: 11, fontWeight: 600, fill: "#92400E" },
-      labelBgStyle: { fill: "#FFFBEB" },
       style: { stroke: isBridge ? CHART.amber : "#94A3B8", strokeWidth: isBridge ? 2 : 1.5 },
       markerEnd: isBridge ? undefined : { type: MarkerType.ArrowClosed, color: "#94A3B8" },
     };
   });
 
-  // Open on the bridges rather than a whole semester of unreadably small nodes.
-  const focusIds = bridges.flatMap((node) => [node.id, ...neighbours(node.id)]);
+  // Open on the start of each timeline and the bridges, not a whole semester of tiny nodes.
+  const courseStarts = nodes.filter((node) => node.type === "chunk" && node.position.x === 0).map((node) => node.id);
+  const focusIds = [...courseStarts, ...bridges.flatMap((node) => [node.id, ...neighbours(node.id)])];
   return { nodes, edges, focus: focusIds.map((id) => ({ id })) };
 }
 
@@ -164,7 +169,7 @@ export default function GraphCanvas({ graph, onSelect }: { graph: KnowledgeGraph
       maxZoom={1.6}
     >
       <Background color="#E2E8F0" gap={24} />
-      <Controls showInteractive={false} fitViewOptions={{ padding: 0.05 }} />
+      <Controls showInteractive={false} orientation="horizontal" fitViewOptions={{ padding: 0.05 }} />
     </ReactFlow>
   );
 }

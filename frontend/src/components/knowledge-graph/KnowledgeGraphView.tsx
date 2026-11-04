@@ -52,7 +52,7 @@ export function KnowledgeGraphView() {
             Weak in IA-1 ({weak.length})
           </span>
         </div>
-        <div className="h-[560px] w-full">
+        <div className="h-[640px] w-full">
           <GraphCanvas graph={graph} onSelect={setSelected} />
         </div>
       </Card>
