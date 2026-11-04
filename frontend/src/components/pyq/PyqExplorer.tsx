@@ -7,8 +7,6 @@ import { api, useResource } from "@/lib/api";
 import { fallbackPyq } from "@/lib/fallback/pyq";
 import type { PyqQuestion } from "@/types";
 
-const SIMILARITY_THRESHOLD = 0.85;
-
 function TopicColumn({ title, topics, tone }: { title: string; topics: string[]; tone: "success" | "brand" | "critical" }) {
   return (
     <div>
@@ -73,14 +71,14 @@ export function PyqExplorer() {
 
       <Card>
         <CardHeader
-          title={`${data.predecessor_code} (2024 Image Processing) to ${data.course_code} (2026 Computer Vision)`}
-          description={`Mapping approved by ${data.approved_by}.`}
+          title={`${data.predecessor_code} to ${data.course_code}`}
+          description={`${data.predecessor_title} became ${data.course_title}. Mapping approved by ${data.approved_by}.`}
           action={<GitCompareArrows className="h-5 w-5 text-brand-600" aria-hidden />}
         />
         <div className="grid gap-4 md:grid-cols-[10rem_1fr_1fr_1fr]">
           <StatTile label="Syllabus overlap" value={`${data.overlap_percent}%`} hint="Course Lead approved" />
           <TopicColumn title="Retained" topics={data.retained_topics} tone="success" />
-          <TopicColumn title="New in 2026" topics={data.added_topics} tone="brand" />
+          {data.added_topics.length > 0 && <TopicColumn title="New in 2026" topics={data.added_topics} tone="brand" />}
           <TopicColumn title="Deprecated" topics={data.deprecated_topics} tone="critical" />
         </div>
       </Card>
@@ -116,7 +114,7 @@ export function PyqExplorer() {
       </div>
 
       <h2 className="mt-4 text-sm font-semibold" aria-live="polite">
-        {shown.length} questions match the current syllabus (similarity at or above {SIMILARITY_THRESHOLD})
+        {shown.length} questions match the current syllabus (similarity at or above {data.threshold})
       </h2>
       {shown.length > 0 ? (
         <ul className="mt-2 grid gap-2 lg:grid-cols-2">

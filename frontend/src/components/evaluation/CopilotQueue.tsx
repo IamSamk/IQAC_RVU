@@ -4,32 +4,41 @@ import { Bot, BrainCircuit, CheckCircle2, Eye, History, Zap } from "lucide-react
 import { useMemo, useState } from "react";
 import { Badge, Card, CardHeader, Dialog } from "@/components/ui/primitives";
 import { api, useResource } from "@/lib/api";
-import { fallbackAudit, fallbackMemory, fallbackTasks } from "@/lib/fallback/copilot";
+import { fallbackMemory, fallbackTasks } from "@/lib/fallback/copilot";
 import { formatDateTime } from "@/lib/format";
-import type { AuditEntry, CopilotTask } from "@/types";
+import type { CopilotTask } from "@/types";
 
-export function CopilotQueue({ canApprove, actor }: { canApprove: boolean; actor: string }) {
+interface SessionAction {
+  id: string;
+  title: string;
+  tool: string;
+  note?: string;
+  at: string;
+}
+
+export function CopilotQueue({ actor }: { actor: string }) {
   const { data: tasks } = useResource(api.getTasks, fallbackTasks);
+  const { data: memoryLog } = useResource(api.getMemory, fallbackMemory);
   const [approved, setApproved] = useState<Record<string, "live" | "demo">>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<CopilotTask | null>(null);
-  const [audit, setAudit] = useState<AuditEntry[]>(fallbackAudit);
+  const [actions, setActions] = useState<SessionAction[]>([]);
   const [scope, setScope] = useState("ALL");
 
-  const scopes = useMemo(() => ["ALL", ...new Set(fallbackMemory.map((memory) => memory.memory_scope))], []);
-  const memories = fallbackMemory.filter((memory) => scope === "ALL" || memory.memory_scope === scope);
+  const scopes = useMemo(() => ["ALL", ...new Set(memoryLog.map((memory) => memory.memory_scope))], [memoryLog]);
+  const memories = memoryLog.filter((memory) => scope === "ALL" || memory.memory_scope === scope);
 
   const approve = async (task: CopilotTask) => {
     setBusy(task.task_id);
     const response = await api.approveTask(task.task_id);
     setApproved((current) => ({ ...current, [task.task_id]: response.source }));
-    setAudit((current) => [
+    setActions((current) => [
       {
-        log_id: `${task.task_id}-${Date.now()}`,
-        actor,
-        action_type: "APPROVE_COPILOT_TASK",
-        detail: `${task.tool_call_name}: ${task.task_title}${response.source === "demo" ? " (demo, backend offline)" : ""}`,
-        created_at: new Date().toISOString(),
+        id: `${task.task_id}-${current.length}`,
+        title: task.task_title,
+        tool: task.tool_call_name,
+        note: response.source === "demo" ? `Not saved, because ${response.note}.` : undefined,
+        at: new Date().toISOString(),
       },
       ...current,
     ]);
@@ -37,11 +46,11 @@ export function CopilotQueue({ canApprove, actor }: { canApprove: boolean; actor
     setPreview(null);
   };
 
-  const isDone = (task: CopilotTask) => task.status === "APPROVED_EXECUTED" || approved[task.task_id] !== undefined;
+  const isDone = (task: CopilotTask) => task.status !== "AWAITING_HITL_APPROVAL" || approved[task.task_id] !== undefined;
   const awaiting = tasks.filter((task) => !isDone(task)).length;
 
   const approveButton = (task: CopilotTask) => (
-    <button type="button" className="btn-primary" disabled={!canApprove || busy !== null} onClick={() => approve(task)}>
+    <button type="button" className="btn-primary" disabled={busy !== null} onClick={() => approve(task)}>
       <Zap className="h-4 w-4" aria-hidden />
       {busy === task.task_id ? "Executing" : "1-Click Approve & Execute"}
     </button>
@@ -76,7 +85,7 @@ export function CopilotQueue({ canApprove, actor }: { canApprove: boolean; actor
                   {done && (
                     <Badge tone="success">
                       <CheckCircle2 className="h-3 w-3" aria-hidden />
-                      {approved[task.task_id] === "demo" ? "Approved (demo)" : "Executed"}
+                      {approved[task.task_id] === "demo" ? "Approved (not saved)" : "Executed"}
                     </Badge>
                   )}
                 </div>
@@ -91,16 +100,11 @@ export function CopilotQueue({ canApprove, actor }: { canApprove: boolean; actor
             );
           })}
         </ul>
-        {!canApprove && <p className="mt-2 text-xs text-slate-600">Only the course faculty can approve these tasks. IQAC has read access.</p>}
       </Card>
 
       <div className="space-y-4">
         <Card>
-          <CardHeader
-            title="Episodic memory log"
-            description="What the agent remembers, and why it acted."
-            action={<BrainCircuit className="h-5 w-5 text-brand-600" aria-hidden />}
-          />
+          <CardHeader title="Episodic memory log" description="What the agent remembers, and why it acted." action={<BrainCircuit className="h-5 w-5 text-brand-600" aria-hidden />} />
           <label className="text-xs font-medium text-slate-700">
             Scope
             <select className="field mt-1 py-1.5" value={scope} onChange={(event) => setScope(event.target.value)}>
@@ -124,18 +128,25 @@ export function CopilotQueue({ canApprove, actor }: { canApprove: boolean; actor
         </Card>
 
         <Card>
-          <CardHeader title="RBAC audit trail" action={<History className="h-5 w-5 text-brand-600" aria-hidden />} />
-          <ul className="space-y-2" aria-live="polite">
-            {audit.map((entry) => (
-              <li key={entry.log_id} className="border-l-2 border-brand-600 pl-3 text-sm">
-                <p className="font-medium">{entry.action_type}</p>
-                <p className="text-slate-700">{entry.detail}</p>
-                <p className="text-xs text-slate-600">
-                  {entry.actor} · {formatDateTime(entry.created_at)}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <CardHeader title="Your approvals" description="Saved approvals are also written to the audit log, which IQAC can review." action={<History className="h-5 w-5 text-brand-600" aria-hidden />} />
+          {actions.length === 0 ? (
+            <p className="text-sm text-slate-600">Tasks you approve in this session appear here.</p>
+          ) : (
+            <ul className="space-y-2" aria-live="polite">
+              {actions.map((action) => (
+                <li key={action.id} className="border-l-2 border-brand-600 pl-3 text-sm">
+                  <p className="font-medium">{action.title}</p>
+                  <p className="text-slate-700">
+                    <code className="font-mono text-xs">{action.tool}</code>
+                    {action.note && ` ${action.note}`}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {actor} · {formatDateTime(action.at)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
 
@@ -145,9 +156,7 @@ export function CopilotQueue({ canApprove, actor }: { canApprove: boolean; actor
             <p className="text-sm text-slate-700">{preview.summary}</p>
             <h3 className="mt-4 text-sm font-semibold">Pre-executed tool call</h3>
             <code className="mt-1 block font-mono text-sm text-brand-700">{preview.tool_call_name}</code>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 p-3 font-mono text-xs text-slate-100">
-              {JSON.stringify(preview.pre_executed_draft_payload, null, 2)}
-            </pre>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 p-3 font-mono text-xs text-slate-100">{JSON.stringify(preview.pre_executed_draft_payload, null, 2)}</pre>
             {!isDone(preview) && <div className="mt-4">{approveButton(preview)}</div>}
           </>
         )}

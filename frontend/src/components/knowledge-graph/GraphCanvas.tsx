@@ -48,7 +48,8 @@ function ChunkNode({ data }: NodeProps<FlowNode>) {
     >
       <Handles />
       <div className={clsx("text-[11px] font-semibold", teal ? "text-teal-700" : "text-brand-700")}>
-        {node.course_code} · Day {node.day}
+        {node.course_code}
+        {node.when ? ` · ${node.when}` : ""}
       </div>
       <div className="mt-0.5 text-xs font-medium leading-snug text-slate-900">{node.title}</div>
       <div className="mt-1 text-[11px] text-slate-600">
@@ -80,7 +81,7 @@ function BridgeNode({ data }: NodeProps<FlowNode>) {
 const nodeTypes = { chunk: ChunkNode, bridge: BridgeNode };
 
 /** Courses become chronological rows, with bridge nodes between the chunks they join. */
-function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[] } {
+function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[]; focus: { id: string }[] } {
   const chunks = graph.nodes.filter((node) => node.kind === "chunk");
   const courses = [...new Set(chunks.map((node) => node.course_code))];
   const positions = new Map<string, { x: number; y: number }>();
@@ -89,7 +90,7 @@ function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[] } {
   courses.forEach((course, courseIndex) => {
     chunks
       .filter((node) => node.course_code === course)
-      .sort((a, b) => a.day - b.day)
+      .sort((a, b) => a.unit - b.unit || a.chunk - b.chunk)
       .forEach((node, index) => {
         const position = { x: index * COLUMN, y: courseIndex * ROW_GAP };
         positions.set(node.id, position);
@@ -97,29 +98,29 @@ function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[] } {
       });
   });
 
+  const neighbours = (id: string) =>
+    graph.edges.filter((edge) => edge.source === id || edge.target === id).map((edge) => (edge.source === id ? edge.target : edge.source));
+
   const bridges = graph.nodes.filter((node) => node.kind === "bridge");
-  bridges.forEach((node, index) => {
-    const linked = graph.edges
-      .filter((edge) => edge.source === node.id || edge.target === node.id)
-      .map((edge) => positions.get(edge.source === node.id ? edge.target : edge.source))
-      .filter((position): position is { x: number; y: number } => Boolean(position));
-    const x = linked.length ? linked.reduce((sum, position) => sum + position.x, 0) / linked.length : index * COLUMN;
-    const y = ROW_GAP / 2 - 30 + (index % 2 === 0 ? 0 : 0);
-    positions.set(node.id, { x, y });
-    nodes.push({ id: node.id, type: "bridge", position: { x, y }, data: { node, courseIndex: -1 }, ariaLabel: `Bridge: ${node.title}` });
-  });
+  const bridgeNodes: FlowNode[] = bridges
+    .map((node, index) => {
+      const linked = neighbours(node.id)
+        .map((id) => positions.get(id))
+        .filter((position): position is { x: number; y: number } => Boolean(position));
+      const x = linked.length ? linked.reduce((sum, position) => sum + position.x, 0) / linked.length : index * COLUMN;
+      return { id: node.id, type: "bridge" as const, position: { x, y: ROW_GAP / 2 - 30 }, data: { node, courseIndex: -1 }, ariaLabel: `Bridge: ${node.title}` };
+    })
+    .sort((a, b) => a.position.x - b.position.x);
 
-  // Bridge nodes sit on one row, so push them apart if their midpoints overlap.
-  const bridgeNodes = nodes.filter((node) => node.type === "bridge").sort((a, b) => a.position.x - b.position.x);
-  for (let index = 1; index < bridgeNodes.length; index += 1) {
+  // Bridge nodes share one row, so push them apart if their midpoints overlap.
+  bridgeNodes.forEach((node, index) => {
+    if (index === 0) return;
     const minimum = bridgeNodes[index - 1].position.x + BRIDGE_WIDTH + 40;
-    if (bridgeNodes[index].position.x < minimum) bridgeNodes[index].position.x = minimum;
-  }
+    if (node.position.x < minimum) node.position.x = minimum;
+  });
+  nodes.push(...bridgeNodes);
 
-  const rowOf = (id: string) => {
-    const found = nodes.find((node) => node.id === id);
-    return found?.position.y ?? 0;
-  };
+  const rowOf = (id: string) => nodes.find((node) => node.id === id)?.position.y ?? 0;
 
   const edges: Edge[] = graph.edges.map((edge) => {
     const isBridge = edge.edge_type === "CROSS_SUBJECT_BRIDGE";
@@ -132,7 +133,7 @@ function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[] } {
       targetHandle: isBridge ? (downward ? "top-in" : "bottom-in") : "left",
       type: isBridge ? "default" : "straight",
       animated: isBridge,
-      label: isBridge && edge.similarity_score !== undefined && downward ? `sim ${edge.similarity_score.toFixed(2)}` : undefined,
+      label: isBridge && edge.similarity_score !== undefined && rowOf(edge.source) === 0 ? `sim ${edge.similarity_score.toFixed(2)}` : undefined,
       labelStyle: { fontSize: 11, fontWeight: 600, fill: "#92400E" },
       labelBgStyle: { fill: "#FFFBEB" },
       style: { stroke: isBridge ? CHART.amber : "#94A3B8", strokeWidth: isBridge ? 2 : 1.5 },
@@ -140,13 +141,16 @@ function layout(graph: KnowledgeGraph): { nodes: FlowNode[]; edges: Edge[] } {
     };
   });
 
-  return { nodes, edges };
+  // Open on the bridges rather than a whole semester of unreadably small nodes.
+  const focusIds = bridges.flatMap((node) => [node.id, ...neighbours(node.id)]);
+  return { nodes, edges, focus: focusIds.map((id) => ({ id })) };
 }
 
 export default function GraphCanvas({ graph, onSelect }: { graph: KnowledgeGraph; onSelect: (node: KGNode) => void }) {
-  const { nodes, edges } = useMemo(() => layout(graph), [graph]);
+  const { nodes, edges, focus } = useMemo(() => layout(graph), [graph]);
   return (
     <ReactFlow
+      key={graph.nodes.length}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
@@ -155,13 +159,12 @@ export default function GraphCanvas({ graph, onSelect }: { graph: KnowledgeGraph
       nodesConnectable={false}
       edgesFocusable={false}
       fitView
-      fitViewOptions={{ padding: 0.08 }}
-      minZoom={0.3}
+      fitViewOptions={{ padding: 0.12, nodes: focus.length ? focus : undefined }}
+      minZoom={0.25}
       maxZoom={1.6}
-      proOptions={{ hideAttribution: false }}
     >
       <Background color="#E2E8F0" gap={24} />
-      <Controls showInteractive={false} />
+      <Controls showInteractive={false} fitViewOptions={{ padding: 0.05 }} />
     </ReactFlow>
   );
 }

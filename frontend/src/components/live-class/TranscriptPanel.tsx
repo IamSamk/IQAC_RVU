@@ -6,32 +6,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Badge, Card, CardHeader, Dialog, Notice } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
-import { fallbackPacing } from "@/lib/fallback/pacing";
-import { recalibrate } from "@/lib/pacing";
+import { formatDate } from "@/lib/format";
+import type { LiveSession } from "@/types";
 
-const TRANSCRIPT = [
-  { slide: 1, conf: 0.94, text: "Last session ended on the circle of confusion. Today we use that blur to estimate depth." },
-  { slide: 2, conf: 0.92, text: "Start with the thin-lens equation: one over f equals one over u plus one over v." },
-  { slide: 3, conf: 0.9, text: "Fix the sensor plane and only one scene depth is in perfect focus." },
-  { slide: 4, conf: 0.93, text: "Every other depth spreads into a disc on the sensor. That disc is our measurement." },
-  { slide: 5, conf: 0.88, text: "So how large is the disc? It depends on aperture diameter and on how far out of focus the point is." },
-  { slide: 6, conf: 0.91, text: "Open the aperture and blur grows. Stop it down and the depth cue gets weaker." },
-  { slide: 7, conf: 0.89, text: "This is exactly the f-number relation from Unit 1: N equals f over D." },
-  { slide: 8, conf: 0.93, text: "Now take two images of the same scene with different focus settings." },
-  { slide: 9, conf: 0.9, text: "Compare local sharpness patch by patch to see which image each point favours." },
-  { slide: 10, conf: 0.87, text: "That ratio of blur gives a depth estimate without any second camera." },
-  { slide: 11, conf: 0.92, text: "It fails on textureless regions because there is no sharpness to compare." },
-  { slide: 12, conf: 0.91, text: "Before we move on, try the short activity on your screens." },
-];
-
-const TOTAL_SLIDES = 15;
-const LECTURE_MINS = 42;
-const TOPICS = [
-  { label: "Thin-lens equation", slide: 3 },
-  { label: "Blur disc and aperture", slide: 7 },
-  { label: "Comparing two focus settings", slide: 10 },
-  { label: "Limits and practice problems", slide: 15 },
-];
+const FEED_INTERVAL_MS = 3500;
+const INITIAL_LINES = 3;
 
 function Waveform({ active }: { active: boolean }) {
   return (
@@ -47,41 +26,46 @@ function Waveform({ active }: { active: boolean }) {
   );
 }
 
-interface Checkpoint {
-  slide: number;
-  behindMins: number;
-  absorbed: number;
-  overflow: number;
-  saved: "live" | "demo";
+function checkpointMessage(checkpoint: { label: string; behind: number; shifted: number[]; finishesOn: string | null; note?: string }) {
+  const where = `Checkpoint saved: ${checkpoint.label}${checkpoint.note ? ` (in this browser, because ${checkpoint.note})` : ""}.`;
+  const pace = checkpoint.behind > 0 ? `About ${checkpoint.behind} min behind.` : "No minutes lost.";
+  const shifted = checkpoint.shifted.length ? `Sessions ${checkpoint.shifted.join(", ")} were re-balanced.` : "";
+  const finish = checkpoint.finishesOn ? `The syllabus finishes on ${formatDate(checkpoint.finishesOn)}.` : "";
+  return [where, pace, shifted, finish].filter(Boolean).join(" ");
 }
 
-export function TranscriptPanel({ canControl }: { canControl: boolean }) {
-  const [visible, setVisible] = useState(3);
+export function TranscriptPanel({ session, canControl }: { session: LiveSession; canControl: boolean }) {
+  const [visible, setVisible] = useState(INITIAL_LINES);
   const [dropped, setDropped] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const logRef = useRef<HTMLOListElement>(null);
+
+  const slides =
+    session.slide_start !== null && session.slide_end !== null
+      ? Array.from({ length: session.slide_end - session.slide_start + 1 }, (_, index) => (session.slide_start as number) + index)
+      : [];
 
   useEffect(() => {
     if (dropped) return;
     const timer = window.setInterval(() => {
-      setVisible((count) => Math.min(count + 1, TRANSCRIPT.length));
-    }, 3500);
+      setVisible((count) => Math.min(count + 1, session.transcript.length));
+    }, FEED_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [dropped]);
+  }, [dropped, session.transcript.length]);
 
   useEffect(() => {
     const log = logRef.current;
     if (log) log.scrollTop = log.scrollHeight;
   }, [visible]);
 
-  const lines = TRANSCRIPT.slice(0, visible);
-  const currentSlide = lines[lines.length - 1].slide;
+  const lines = session.transcript.slice(0, visible);
+  const position = lines[lines.length - 1]?.label ?? "";
 
   const drop = () => {
     setDropped(true);
-    setCheckpoint(null);
+    setMessage(null);
     setModalOpen(true);
   };
 
@@ -90,18 +74,36 @@ export function TranscriptPanel({ canControl }: { canControl: boolean }) {
     setModalOpen(false);
   };
 
-  const submit = async (slide: number, topic?: string) => {
+  const submit = async (slide: number | null, topic?: string) => {
     setSaving(true);
-    const response = await api.fallbackCheckpoint({ slide, topic });
-    const behindMins = Math.round(((TOTAL_SLIDES - slide) / TOTAL_SLIDES) * LECTURE_MINS);
-    const plan = recalibrate({
-      sessions: fallbackPacing.sessions,
-      behindSession: 12,
-      shortfallMins: behindMins,
-      ltp: { l: 3, t: 0, p: 1 },
-      prompt: fallbackPacing.pedagogical_system_prompt,
+    const response = await api.fallbackCheckpoint(session.session_id, {
+      slide_number: slide ?? undefined,
+      chunk_id: session.chunk_id ?? undefined,
+      topic,
     });
-    setCheckpoint({ slide, behindMins, absorbed: plan.absorbedMins, overflow: plan.overflowMins, saved: response.source });
+    const label = topic ?? (slide !== null ? `Slide ${slide}` : session.topic_title);
+    if (response.data) {
+      setMessage(
+        checkpointMessage({
+          label: response.data.checkpoint || label,
+          behind: response.data.minutes_behind,
+          shifted: response.data.shifted_sessions,
+          finishesOn: response.data.syllabus_finishes_on,
+        }),
+      );
+    } else {
+      const remaining = slide !== null && session.slide_end !== null ? session.slide_end - slide : 0;
+      const total = slides.length || 1;
+      setMessage(
+        checkpointMessage({
+          label,
+          behind: Math.round((remaining / total) * session.lecture_minutes),
+          shifted: [],
+          finishesOn: null,
+          note: response.note ?? "the backend is offline",
+        }),
+      );
+    }
     setSaving(false);
     setModalOpen(false);
   };
@@ -109,8 +111,8 @@ export function TranscriptPanel({ canControl }: { canControl: boolean }) {
   return (
     <Card>
       <CardHeader
-        title="Session 12 live transcript"
-        description="Depth from defocus and the thin-lens model. Simulated classroom feed."
+        title={`Session ${session.session_number} live transcript`}
+        description={`${session.topic_title}. Simulated classroom feed.`}
         action={
           dropped ? (
             <Badge tone="critical">
@@ -120,7 +122,7 @@ export function TranscriptPanel({ canControl }: { canControl: boolean }) {
           ) : (
             <Badge tone="success">
               <Mic className="h-3 w-3" aria-hidden />
-              Listening · Slide {currentSlide}/{TOTAL_SLIDES}
+              Listening · {position}
             </Badge>
           )
         }
@@ -128,29 +130,26 @@ export function TranscriptPanel({ canControl }: { canControl: boolean }) {
       <Waveform active={!dropped} />
 
       <ol ref={logRef} aria-label="Lecture transcript" className="mt-3 h-44 space-y-2 overflow-y-auto pr-1 text-sm">
-        {lines.map((line) => (
-          <li key={line.slide} className="grid grid-cols-[3.25rem_1fr] gap-2">
+        {lines.map((line, index) => (
+          <li key={index} className="grid grid-cols-[3.25rem_1fr] gap-2">
             <span className="inline-flex h-fit items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
               <Presentation className="h-3 w-3" aria-hidden />
-              {line.slide}
+              {line.label}
             </span>
             <span className="text-slate-800">{line.text}</span>
           </li>
         ))}
       </ol>
 
-      {checkpoint && (
+      {message && (
         <div className="mt-3">
-          <Notice tone={checkpoint.overflow > 0 ? "warning" : "success"} icon={<CheckCircle2 className="h-4 w-4" aria-hidden />}>
-            Checkpoint saved at slide {checkpoint.slide}
-            {checkpoint.saved === "demo" ? " in this browser (backend offline)" : ""}. {TOTAL_SLIDES - checkpoint.slide} slides remain, about{" "}
-            {checkpoint.behindMins} min behind.{" "}
-            {checkpoint.overflow > 0
-              ? `${checkpoint.absorbed} min fit in later sessions; ${checkpoint.overflow} min need a buffer session.`
-              : `Sessions 13–18 can absorb all ${checkpoint.absorbed} min.`}{" "}
-            <Link href="/pacing" className="font-medium underline">
-              Open pacing
-            </Link>
+          <Notice tone="success" icon={<CheckCircle2 className="h-4 w-4" aria-hidden />}>
+            {message}{" "}
+            {canControl && (
+              <Link href="/pacing" className="font-medium underline">
+                Open pacing
+              </Link>
+            )}
           </Notice>
         </div>
       )}
@@ -160,7 +159,7 @@ export function TranscriptPanel({ canControl }: { canControl: boolean }) {
           {dropped ? (
             <>
               <button type="button" className="btn-outline" onClick={() => setModalOpen(true)}>
-                Update slide checkpoint
+                Update checkpoint
               </button>
               <button type="button" className="btn-primary" onClick={restore}>
                 <Mic className="h-4 w-4" aria-hidden />
@@ -178,28 +177,32 @@ export function TranscriptPanel({ canControl }: { canControl: boolean }) {
 
       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} title="Where did you reach?">
         <p className="text-sm text-slate-600">
-          Transcription dropped at slide {currentSlide}. Tap the slide or topic you reached so pacing can recalibrate without losing data.
+          Transcription dropped at {position}. Tap what you reached so pacing can recalibrate without losing data. This completes the session and updates the plan.
         </p>
-        <h3 className="mt-4 text-sm font-medium">Slide</h3>
-        <div className="mt-2 grid grid-cols-5 gap-2">
-          {Array.from({ length: TOTAL_SLIDES }, (_, index) => index + 1).map((slide) => (
-            <button
-              key={slide}
-              type="button"
-              disabled={saving}
-              onClick={() => submit(slide)}
-              className={clsx("btn min-h-[44px] border", slide === currentSlide ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-300 hover:bg-slate-100")}
-            >
-              {slide}
-            </button>
-          ))}
-        </div>
-        <h3 className="mt-4 text-sm font-medium">Or topic</h3>
+        {slides.length > 0 && (
+          <>
+            <h3 className="mt-4 text-sm font-medium">Slide</h3>
+            <div className="mt-2 grid max-h-52 grid-cols-5 gap-2 overflow-y-auto">
+              {slides.map((slide) => (
+                <button
+                  key={slide}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => submit(slide)}
+                  className={clsx("btn min-h-[44px] border", `S${slide}` === position ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-300 hover:bg-slate-100")}
+                >
+                  {slide}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <h3 className="mt-4 text-sm font-medium">{slides.length > 0 ? "Or topic" : "Topic"}</h3>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {TOPICS.map((topic) => (
+          {session.topics.map((topic) => (
             <button key={topic.label} type="button" disabled={saving} onClick={() => submit(topic.slide, topic.label)} className="btn-outline justify-start text-left">
               {topic.label}
-              <span className="ml-auto text-xs text-slate-500">to slide {topic.slide}</span>
+              {topic.slide !== null && <span className="ml-auto text-xs text-slate-500">to slide {topic.slide}</span>}
             </button>
           ))}
         </div>

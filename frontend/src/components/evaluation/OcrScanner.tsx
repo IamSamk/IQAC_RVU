@@ -2,25 +2,22 @@
 
 import clsx from "clsx";
 import { AlertTriangle, CheckCircle2, FileUp, RefreshCw, ScanLine } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/ui/ChartTooltip";
 import { Badge, Card, CardHeader, DataTableDetails, Notice } from "@/components/ui/primitives";
-import { api } from "@/lib/api";
+import { api, useResource } from "@/lib/api";
 import { CHART } from "@/lib/chart";
-import { ATTAINMENT_TARGET, CO_PO_MAP, SYNCED_COHORT, fallbackEvaluation } from "@/lib/fallback/ocr";
+import { CO_PO_MAP, fallbackAttainment, fallbackEvaluation } from "@/lib/fallback/ocr";
 import { percent } from "@/lib/format";
-import type { DataSource, OcrCell, OcrEvaluation } from "@/types";
+import type { CoAttainment, EvaluationData, OcrCell, OcrEvaluation } from "@/types";
 
 const CONFIDENCE_THRESHOLD = 0.95;
+const FALLBACK: EvaluationData = { evaluation: fallbackEvaluation, attainment: fallbackAttainment };
 
-function ScannedSheet({ evaluation, imageUrl }: { evaluation: OcrEvaluation; imageUrl: string | null }) {
-  if (imageUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imageUrl} alt={`Uploaded mark sheet for ${evaluation.usn}`} className="max-h-[420px] w-full rounded-lg border border-slate-300 object-contain" />;
-  }
+function ScannedSheet({ evaluation }: { evaluation: OcrEvaluation }) {
   return (
-    <figure aria-label={`Sample scanned mark grid for ${evaluation.usn}`} className="rounded-lg border border-slate-300 bg-[#FBF8EF] p-4 font-mono text-sm text-slate-800">
+    <figure aria-label={`Illustration of the scanned mark grid for ${evaluation.usn}`} className="rounded-lg border border-slate-300 bg-[#FBF8EF] p-4 font-mono text-sm text-slate-800">
       <div className="flex flex-wrap justify-between gap-2 border-b border-dashed border-slate-400 pb-2 text-xs">
         <span>USN: {evaluation.usn}</span>
         <span>{evaluation.exam_name}</span>
@@ -55,63 +52,91 @@ function ScannedSheet({ evaluation, imageUrl }: { evaluation: OcrEvaluation; ima
           </tr>
         </tbody>
       </table>
-      <figcaption className="mt-2 text-xs text-slate-600">Sample sheet for the demo</figcaption>
+      <figcaption className="mt-2 text-xs text-slate-600">Illustration drawn from the extracted data</figcaption>
     </figure>
   );
 }
 
-function attainment(cells: OcrCell[], includeSheet: boolean) {
-  return Object.entries(SYNCED_COHORT).map(([co, base]) => {
-    const sheetCells = includeSheet ? cells.filter((cell) => cell.co === co) : [];
-    const earned = base.earned + sheetCells.reduce((sum, cell) => sum + cell.marks, 0);
-    const max = base.max + sheetCells.reduce((sum, cell) => sum + cell.max, 0);
-    return { co, value: Math.round((earned / max) * 1000) / 10, before: Math.round((base.earned / base.max) * 1000) / 10 };
-  });
+/** Offline stand-in for the backend's recalculation after a sheet is approved. */
+function applyLocally(attainment: CoAttainment, before: OcrCell[], after: OcrCell[]): CoAttainment {
+  return {
+    ...attainment,
+    approved_sheets: Math.min(attainment.total_sheets, attainment.approved_sheets + 1),
+    outcomes: attainment.outcomes.map((outcome) => {
+      const cells = after.filter((cell) => cell.co === outcome.co);
+      const max = cells.reduce((sum, cell) => sum + cell.max, 0);
+      const change = cells.reduce((sum, cell) => sum + cell.marks, 0) - before.filter((cell) => cell.co === outcome.co).reduce((sum, cell) => sum + cell.marks, 0);
+      if (!max || !outcome.n) return outcome;
+      return { ...outcome, avg_pct: Math.round((outcome.avg_pct + ((change / max) * 100) / outcome.n) * 10) / 10 };
+    }),
+  };
 }
 
-export function OcrScanner({ canApprove }: { canApprove: boolean }) {
-  const [evaluation, setEvaluation] = useState<OcrEvaluation>(fallbackEvaluation);
+export function OcrScanner() {
+  const { data } = useResource(api.getEvaluation, FALLBACK);
+  const [evaluation, setEvaluation] = useState(data.evaluation);
+  const [attainment, setAttainment] = useState(data.attainment);
+  const [previous, setPrevious] = useState<CoAttainment | null>(null);
   const [marks, setMarks] = useState<Record<string, number>>({});
-  const [synced, setSynced] = useState<DataSource | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
 
-  const cells = useMemo(
-    () => evaluation.cells.map((cell) => ({ ...cell, marks: marks[cell.question] ?? cell.marks })),
-    [evaluation, marks],
-  );
+  useEffect(() => {
+    setEvaluation(data.evaluation);
+    setAttainment(data.attainment);
+    setPrevious(null);
+    setMarks({});
+    setSyncMessage(null);
+  }, [data]);
+
+  const verified = evaluation.approved || syncMessage !== null;
+  const cells = useMemo(() => evaluation.cells.map((cell) => ({ ...cell, marks: marks[cell.question] ?? cell.marks })), [evaluation, marks]);
   const flagged = cells.filter((cell) => cell.conf < CONFIDENCE_THRESHOLD);
   const total = cells.reduce((sum, cell) => sum + cell.marks, 0);
   const totalMatches = total === evaluation.written_total;
   const invalidCell = cells.some((cell) => !Number.isFinite(cell.marks) || cell.marks < 0 || cell.marks > cell.max);
-  const chart = useMemo(() => attainment(cells, synced !== null), [cells, synced]);
+
+  const chart = attainment.outcomes.map((outcome) => ({
+    co: outcome.co,
+    value: outcome.avg_pct,
+    before: previous?.outcomes.find((item) => item.co === outcome.co)?.avg_pct ?? outcome.avg_pct,
+  }));
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
     setScanning(true);
     setScanNotice(null);
-    const response = await api.evaluateSheet(file);
+    const response = await api.uploadSheet(file);
     setScanning(false);
-    setMarks({});
-    setSynced(null);
-    setEvaluation(response.data);
-    if (response.source === "live") {
-      setImageUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return URL.createObjectURL(file);
-      });
-    } else {
-      setImageUrl(null);
-      setScanNotice(`The OCR service is offline, so ${file.name} was not read. Showing the sample sheet instead.`);
+    if (!response.data) {
+      setScanNotice(`${file.name} was not read because ${response.note}.`);
+      return;
     }
+    setMarks({});
+    setSyncMessage(null);
+    setPrevious(null);
+    setEvaluation(response.data.evaluation);
+    setScanNotice(
+      response.data.sampleOnly
+        ? `${file.name} was received, but no vision engine is connected yet, so these marks come from the backend's sample sheet.`
+        : `${file.name} was read.`,
+    );
   };
 
   const verify = async () => {
     setSyncing(true);
-    const response = await api.approveAndSync(evaluation.eval_id, { marks: Object.fromEntries(cells.map((cell) => [cell.question, cell.marks])) });
-    setSynced(response.source);
+    const corrections = Object.fromEntries(cells.filter((cell) => cell.marks !== evaluation.cells.find((item) => item.question === cell.question)?.marks).map((cell) => [cell.question, cell.marks]));
+    const response = await api.approveAndSync(evaluation.eval_id, corrections);
+    setPrevious(attainment);
+    if (response.data) {
+      setAttainment(response.data);
+      setSyncMessage("Marks verified and recorded. The spreadsheet step is a mock until Google Sheets is connected.");
+    } else {
+      setAttainment(applyLocally(attainment, evaluation.cells, cells));
+      setSyncMessage(`Marks verified in this browser only, because ${response.note}. Nothing was saved.`);
+    }
     setSyncing(false);
   };
 
@@ -122,14 +147,14 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
           title="OCR mark-sheet scanner"
           description={`Any cell below ${percent(CONFIDENCE_THRESHOLD)} confidence needs a faculty check before marks reach the spreadsheet.`}
           action={
-            <label className={clsx("btn-outline", (scanning || !canApprove) && "cursor-not-allowed opacity-50", !scanning && canApprove && "cursor-pointer")}>
+            <label className={clsx("btn-outline", scanning ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
               {scanning ? <RefreshCw className="h-4 w-4 animate-spin" aria-hidden /> : <FileUp className="h-4 w-4" aria-hidden />}
               {scanning ? "Scanning" : "Upload a sheet"}
               <input
                 type="file"
                 accept="image/*"
                 className="sr-only"
-                disabled={scanning || !canApprove}
+                disabled={scanning}
                 onChange={(event) => {
                   upload(event.target.files?.[0]);
                   event.target.value = "";
@@ -151,7 +176,8 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
               <ScanLine className="h-4 w-4 text-slate-600" aria-hidden />
               Scanned sheet
             </h3>
-            <ScannedSheet evaluation={evaluation} imageUrl={imageUrl} />
+            <ScannedSheet evaluation={evaluation} />
+            {evaluation.feedback && <p className="mt-2 text-sm text-slate-700">{evaluation.feedback}</p>}
           </div>
           <div>
             <h3 className="mb-2 text-sm font-medium">Extracted marks</h3>
@@ -169,12 +195,12 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
                   {cells.map((cell) => {
                     const needsReview = cell.conf < CONFIDENCE_THRESHOLD;
                     return (
-                      <tr key={cell.question} className={clsx("border-t border-slate-100", needsReview && !synced && "bg-gold-100")}>
+                      <tr key={cell.question} className={clsx("border-t border-slate-100", needsReview && !verified && "bg-gold-100")}>
                         <th scope="row" className="px-3 py-2 font-medium">
                           {cell.question}
                         </th>
                         <td className="px-3 py-2">
-                          {needsReview && !synced && canApprove ? (
+                          {needsReview && !verified ? (
                             <label className="inline-flex items-center gap-1">
                               <span className="sr-only">Marks for {cell.question}</span>
                               <input
@@ -193,7 +219,7 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
                         </td>
                         <td className="px-3 py-2">{percent(cell.conf)}</td>
                         <td className="px-3 py-2">
-                          {needsReview && !synced ? (
+                          {needsReview && !verified ? (
                             <Badge tone="warning">
                               <AlertTriangle className="h-3 w-3" aria-hidden />
                               Requires Faculty Verification
@@ -217,24 +243,29 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
               Sum of marks {total} {totalMatches ? "matches" : "does not match"} the written total {evaluation.written_total}.
             </p>
 
-            {invalidCell && <p role="alert" className="mt-1 text-sm text-critical-700">Marks must be between 0 and the maximum for that question.</p>}
+            {invalidCell && (
+              <p role="alert" className="mt-1 text-sm text-critical-700">
+                Marks must be between 0 and the maximum for that question.
+              </p>
+            )}
 
-            {synced ? (
+            {verified ? (
               <div className="mt-3">
                 <Notice tone="success" icon={<CheckCircle2 className="h-4 w-4" aria-hidden />}>
-                  {synced === "live"
-                    ? "Marks verified and synced to the evaluation sheet."
-                    : "Marks verified. Attainment updated in this demo; nothing was written to Google Sheets because the backend is offline."}
+                  {syncMessage ?? "This sheet has already been verified."}
                 </Notice>
               </div>
             ) : (
               <>
-                <button type="button" className="btn-primary mt-3 w-full" disabled={syncing || invalidCell || !canApprove} onClick={verify}>
+                <button type="button" className="btn-primary mt-3 w-full" disabled={syncing || invalidCell} onClick={verify}>
                   <CheckCircle2 className="h-4 w-4" aria-hidden />
                   {syncing ? "Syncing" : "Verify & Sync to Google Sheets"}
                 </button>
-                {!canApprove && <p className="mt-1 text-xs text-slate-600">Only the course faculty can verify marks. IQAC has read access.</p>}
-                {canApprove && flagged.length > 0 && <p className="mt-1 text-xs text-slate-600">Check the {flagged.length} amber cell against the scan before syncing.</p>}
+                {flagged.length > 0 && (
+                  <p className="mt-1 text-xs text-slate-600">
+                    Check the {flagged.length} amber {flagged.length === 1 ? "cell" : "cells"} against the scan before syncing.
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -242,7 +273,10 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
       </Card>
 
       <Card>
-        <CardHeader title="CO attainment" description={`Share of available marks earned per course outcome across synced sheets. The target is ${ATTAINMENT_TARGET}%.`} />
+        <CardHeader
+          title="CO attainment"
+          description={`Average marks per course outcome. The target is ${attainment.target_pct}%. ${attainment.approved_sheets} of ${attainment.total_sheets} sheets are verified.`}
+        />
         <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <div>
             <div className="h-[260px]">
@@ -252,11 +286,8 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
                   <XAxis dataKey="co" tick={{ fill: CHART.axis, fontSize: 12 }} tickLine={false} axisLine={{ stroke: CHART.grid }} />
                   <YAxis domain={[0, 100]} ticks={[0, 20, 40, 60, 80, 100]} unit="%" tick={{ fill: CHART.axis, fontSize: 12 }} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: "#F1F5F9" }} content={<ChartTooltip labelPrefix="" />} />
-                  <ReferenceLine y={ATTAINMENT_TARGET} stroke={CHART.ink} strokeWidth={1} label={{ value: `Target ${ATTAINMENT_TARGET}%`, position: "insideTopRight", fill: CHART.ink, fontSize: 11 }} />
-                  <Bar dataKey="value" name="Attainment" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                    {chart.map((row) => (
-                      <Cell key={row.co} fill={CHART.indigo} />
-                    ))}
+                  <ReferenceLine y={attainment.target_pct} stroke={CHART.ink} strokeWidth={1} label={{ value: `Target ${attainment.target_pct}%`, position: "insideTopRight", fill: CHART.ink, fontSize: 11 }} />
+                  <Bar dataKey="value" name="Attainment" fill={CHART.indigo} radius={[4, 4, 0, 0]} isAnimationActive={false}>
                     <LabelList dataKey="value" position="top" formatter={(value: number) => `${value}%`} style={{ fill: CHART.ink, fontSize: 12, fontWeight: 600 }} />
                   </Bar>
                 </BarChart>
@@ -264,12 +295,12 @@ export function OcrScanner({ canApprove }: { canApprove: boolean }) {
             </div>
             <DataTableDetails
               columns={["Outcome", "Before this sheet", "Current", "Against target"]}
-              rows={chart.map((row) => [row.co, `${row.before}%`, `${row.value}%`, row.value >= ATTAINMENT_TARGET ? "Met" : "Below"])}
+              rows={chart.map((row) => [row.co, `${row.before}%`, `${row.value}%`, row.value >= attainment.target_pct ? "Met" : "Below"])}
             />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <caption className="mb-2 text-left text-sm font-medium">CO-PO mapping</caption>
+              <caption className="mb-2 text-left text-sm font-medium">Sample CO-PO mapping</caption>
               <thead className="bg-slate-100 text-xs text-slate-700">
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">CO</th>

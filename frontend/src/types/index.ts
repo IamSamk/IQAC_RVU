@@ -1,7 +1,6 @@
 /**
- * Response shapes expected from the FastAPI backend. Field names follow the
- * Supabase schema. A response that does not match falls back to demo data
- * (see the validators in lib/api.ts).
+ * The shapes the UI renders. Backend responses are mapped onto these in
+ * lib/adapters.ts, so a backend change only needs an adapter change.
  */
 
 export type RoleId = "faculty" | "student" | "junior" | "iqac";
@@ -18,10 +17,13 @@ export interface SessionPlan {
   session_id: string;
   session_number: number;
   scheduled_date: string;
+  session_type: string;
+  session_duration_mins: number;
   topic_title: string;
   ltp_type: LtpType;
   lecture_minutes_split: number;
   activity_minutes_split: number;
+  predicted_dip_minute: number | null;
   pacing_delta_mins: number;
   status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "RECALIBRATED";
 }
@@ -36,14 +38,30 @@ export interface PacingPlan {
   last_working_day: string;
   pedagogical_system_prompt: string;
   milestones: Milestone[];
+  /** The session the timeline starts from, and how far behind it finished. */
+  behind_session: number;
+  behind_mins: number;
   sessions: SessionPlan[];
+}
+
+export interface RecalibrationSummary {
+  plan: PacingPlan;
+  carried_drift_mins: number;
+  syllabus_finishes_on: string | null;
+  finishes_before_lwd: boolean;
 }
 
 export interface StrataCurve {
   key: string;
+  stratum: string;
   label: string;
   curve: number[];
   dip_minute: number;
+}
+
+export interface ActivitySplitRange {
+  start: number;
+  end: number;
 }
 
 export interface AttentionModel {
@@ -52,20 +70,63 @@ export interface AttentionModel {
   active_intervened_curve: number[];
   strata_curves: StrataCurve[];
   dip_trigger_minute: number;
+  activity_splits: ActivitySplitRange[];
+  threshold: number;
+  student_poll: { votes: number; avg_preferred_split_min: number | null };
+  citations: string[];
+}
+
+export interface TranscriptLine {
+  label: string;
+  text: string;
+}
+
+export interface CheckpointTopic {
+  label: string;
+  slide: number | null;
+}
+
+export interface LiveSession {
+  session_id: string;
+  session_number: number;
+  topic_title: string;
+  chunk_id: string | null;
+  slide_start: number | null;
+  slide_end: number | null;
+  lecture_minutes: number;
+  transcript: TranscriptLine[];
+  topics: CheckpointTopic[];
+}
+
+export interface LiveClassData {
+  session: LiveSession;
+  model: AttentionModel;
+}
+
+export interface CheckpointResult {
+  checkpoint: string;
+  minutes_behind: number;
+  shifted_sessions: number[];
+  syllabus_finishes_on: string | null;
+}
+
+export interface ActivityQuestion {
+  question: string;
+  options: string[];
+  answer: string;
+  explanation?: string;
 }
 
 export interface QuestionSet {
   set_number: number;
-  question: string;
-  options: string[];
-  answer_index: number;
+  questions: ActivityQuestion[];
 }
 
 export interface ActivityResponse {
   learning_goal: string;
   delivery_platform: string;
-  question_sets_json: QuestionSet[];
-  webhook_payload: Record<string, unknown>;
+  question_sets: QuestionSet[];
+  platform_sync: Record<string, unknown>;
 }
 
 export interface Flashcard {
@@ -75,8 +136,10 @@ export interface Flashcard {
 
 export interface QuizQuestion {
   question: string;
+  /** Empty for numeric questions, which reveal their answer instead. */
   options: string[];
-  answer_index: number;
+  answer: string;
+  explanation?: string;
 }
 
 export interface KGNode {
@@ -85,12 +148,13 @@ export interface KGNode {
   course_code: string;
   unit: number;
   chunk: number;
-  day: number;
+  /** When it was taught, such as "Session 4". */
+  when?: string;
   title: string;
   weak: boolean;
   weak_reason?: string;
   notes_md: string;
-  applied_example: string;
+  applied_example: string | null;
   flashcards: Flashcard[];
   quiz: QuizQuestion[];
 }
@@ -126,8 +190,11 @@ export interface PyqQuestion {
 
 export interface PyqResult {
   course_code: string;
+  course_title: string;
   predecessor_code: string;
+  predecessor_title: string;
   overlap_percent: number;
+  threshold: number;
   approved_by: string;
   retained_topics: string[];
   added_topics: string[];
@@ -149,7 +216,28 @@ export interface OcrEvaluation {
   student_name: string;
   exam_name: string;
   written_total: number;
+  approved: boolean;
+  feedback?: string;
   cells: OcrCell[];
+}
+
+export interface CoOutcome {
+  co: string;
+  avg_pct: number;
+  attainment_level?: number;
+  n: number;
+}
+
+export interface CoAttainment {
+  target_pct: number;
+  approved_sheets: number;
+  total_sheets: number;
+  outcomes: CoOutcome[];
+}
+
+export interface EvaluationData {
+  evaluation: OcrEvaluation;
+  attainment: CoAttainment;
 }
 
 export interface CopilotTask {
@@ -175,4 +263,39 @@ export interface AuditEntry {
   action_type: string;
   detail: string;
   created_at: string;
+}
+
+export interface OfferingCompliance {
+  offering_id: string;
+  course_code: string;
+  course_title: string;
+  faculty: string;
+  ltp: string;
+  sessions_completed: number;
+  sessions_total: number;
+  chunks_covered: number;
+  chunks_total: number;
+  net_pacing_delta_mins: number;
+  approved_sheets: number;
+  total_sheets: number;
+}
+
+export interface RubricConfig {
+  cie_weight: number;
+  see_weight: number;
+  outcomes: string[];
+  blooms_distribution: Record<string, number>;
+}
+
+export interface RbacRole {
+  role_code: string;
+  hierarchy_rank: number;
+  permissions: string[];
+}
+
+export interface ComplianceData {
+  offerings: OfferingCompliance[];
+  rubric: RubricConfig;
+  roles: RbacRole[];
+  audit: AuditEntry[];
 }

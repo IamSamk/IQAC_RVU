@@ -10,13 +10,10 @@ function Evaluation() {
   const { role } = useRole();
   return (
     <>
-      <PageHeader
-        title="OCR Evaluation & Faculty Co-Pilot"
-        description="Marks and agent drafts both stop for a human check before anything is written."
-      />
+      <PageHeader title="OCR Evaluation & Faculty Co-Pilot" description="Marks and agent drafts both stop for a human check before anything is written." />
       <div className="space-y-4">
-        <OcrScanner canApprove={role.canApprove} />
-        <CopilotQueue canApprove={role.canApprove} actor={role.name} />
+        <OcrScanner />
+        <CopilotQueue actor={role.name} />
       </div>
     </>
   );
