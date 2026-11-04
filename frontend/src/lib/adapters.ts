@@ -24,6 +24,8 @@ import type {
   RecalibrationSummary,
   SessionPlan,
   StrataCurve,
+  TranscriptionResult,
+  UploadResult,
 } from "@/types";
 
 /**
@@ -217,11 +219,26 @@ export function adaptCheckpoint(raw: any): CheckpointResult {
   };
 }
 
+/** Generated answers may be the text, a letter ("B"), or vary in case. Returns the matching option. */
+function matchOption(answer: string, options: string[]): string | undefined {
+  const target = answer.trim().toLowerCase();
+  const letter = target.match(/^([a-d])(?:[).:\s]|$)/)?.[1];
+  return (
+    options.find((option) => option.trim().toLowerCase() === target) ??
+    (letter ? options[letter.charCodeAt(0) - 97] : undefined) ??
+    options.find((option) => target.startsWith(option.trim().toLowerCase()) || option.trim().toLowerCase().startsWith(target))
+  );
+}
+
 function adaptQuestion(raw: any): QuizQuestion {
+  const options: string[] = (raw.options ?? []).map(String);
+  const answer = String(need(raw.answer, "answer"));
+  const matched = matchOption(answer, options);
   return {
     question: need(raw.question, "question"),
-    options: raw.options ?? [],
-    answer: String(need(raw.answer, "answer")),
+    // With no identifiable correct option, reveal the answer rather than mark every choice wrong.
+    options: matched ? options : [],
+    answer: matched ?? answer,
     explanation: raw.explanation,
   };
 }
@@ -233,8 +250,18 @@ export function adaptActivity(raw: any): ActivityResponse {
   return {
     learning_goal: raw.learning_goal ?? "",
     delivery_platform: platform,
-    question_sets: sets.map((set: any) => ({ set_number: set.set_number, questions: set.questions.map(adaptQuestion) })),
+    generator: raw.generator,
+    question_sets: sets.map((set: any, index: number) => ({ set_number: set.set_number ?? index + 1, questions: set.questions.map(adaptQuestion) })),
     platform_sync: raw.platform_sync?.[platform] ?? {},
+  };
+}
+
+export function adaptTranscription(raw: any): TranscriptionResult {
+  return {
+    accepted: Boolean(raw.accepted),
+    fallback_required: Boolean(raw.fallback_required),
+    text: raw.text ?? null,
+    reason: raw.reason ?? null,
   };
 }
 
@@ -376,11 +403,14 @@ export function adaptEvaluationList(raw: any[], preferredUsn: string): OcrEvalua
   return adaptEvaluationRecord(record, record.users?.institution_id ?? "", record.users?.full_name ?? "");
 }
 
-/** Response of the upload endpoint. The grid comes from a sample case until vision is wired up. */
-export function adaptUpload(raw: any): { evaluation: OcrEvaluation; sampleOnly: boolean } {
+/** If the vision engine is unavailable, the backend falls back to a sample sheet and says so in `mode`. */
+export function adaptUpload(raw: any): UploadResult {
+  const mode: string = raw.ocr_engine?.mode ?? "SAMPLE_CASE";
   return {
     evaluation: adaptEvaluationRecord(need(raw.evaluation, "evaluation"), raw.student?.institution_id ?? "", raw.student?.full_name ?? ""),
-    sampleOnly: raw.ocr_engine?.mode === "SAMPLE_CASE",
+    engine: mode,
+    sampleOnly: mode === "SAMPLE_CASE",
+    usnWarning: (raw.hitl_flags ?? []).find((flag: any) => flag.q === "USN")?.reason ?? null,
   };
 }
 

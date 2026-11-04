@@ -15,7 +15,12 @@ import type { CoAttainment, EvaluationData, OcrCell, OcrEvaluation } from "@/typ
 const CONFIDENCE_THRESHOLD = 0.95;
 const FALLBACK: EvaluationData = { evaluation: fallbackEvaluation, attainment: fallbackAttainment };
 
-function ScannedSheet({ evaluation }: { evaluation: OcrEvaluation }) {
+function ScannedSheet({ evaluation, imageUrl }: { evaluation: OcrEvaluation; imageUrl: string | null }) {
+  if (imageUrl) {
+    // A local object URL, which next/image cannot optimise.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={imageUrl} alt={`Uploaded mark sheet for ${evaluation.usn}`} className="max-h-[440px] w-full rounded-lg border border-slate-300 object-contain" />;
+  }
   return (
     <figure aria-label={`Illustration of the scanned mark grid for ${evaluation.usn}`} className="rounded-lg border border-slate-300 bg-[#FBF8EF] p-4 font-mono text-sm text-slate-800">
       <div className="flex flex-wrap justify-between gap-2 border-b border-dashed border-slate-400 pb-2 text-xs">
@@ -73,7 +78,7 @@ function applyLocally(attainment: CoAttainment, before: OcrCell[], after: OcrCel
 }
 
 export function OcrScanner() {
-  const { data } = useResource(api.getEvaluation, FALLBACK);
+  const { data, loading } = useResource(api.getEvaluation, FALLBACK);
   const [evaluation, setEvaluation] = useState(data.evaluation);
   const [attainment, setAttainment] = useState(data.attainment);
   const [previous, setPrevious] = useState<CoAttainment | null>(null);
@@ -82,6 +87,14 @@ export function OcrScanner() {
   const [syncing, setSyncing] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+    },
+    [imageUrl],
+  );
 
   useEffect(() => {
     setEvaluation(data.evaluation);
@@ -118,10 +131,11 @@ export function OcrScanner() {
     setSyncMessage(null);
     setPrevious(null);
     setEvaluation(response.data.evaluation);
+    setImageUrl(response.data.sampleOnly ? null : URL.createObjectURL(file));
     setScanNotice(
       response.data.sampleOnly
-        ? `${file.name} was received, but no vision engine is connected yet, so these marks come from the backend's sample sheet.`
-        : `${file.name} was read.`,
+        ? `${file.name} could not be read by the vision engine, so these marks come from the backend's sample sheet.`
+        : `${file.name} was read by ${response.data.engine}. Check the marks against the image.${response.data.usnWarning ? ` ${response.data.usnWarning}.` : ""}`,
     );
   };
 
@@ -147,14 +161,14 @@ export function OcrScanner() {
           title="OCR mark-sheet scanner"
           description={`Any cell below ${percent(CONFIDENCE_THRESHOLD)} confidence needs a faculty check before marks reach the spreadsheet.`}
           action={
-            <label className={clsx("btn-outline", scanning ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
+            <label className={clsx("btn-outline", scanning || loading ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
               {scanning ? <RefreshCw className="h-4 w-4 animate-spin" aria-hidden /> : <FileUp className="h-4 w-4" aria-hidden />}
               {scanning ? "Scanning" : "Upload a sheet"}
               <input
                 type="file"
                 accept="image/*"
                 className="sr-only"
-                disabled={scanning}
+                disabled={scanning || loading}
                 onChange={(event) => {
                   upload(event.target.files?.[0]);
                   event.target.value = "";
@@ -176,7 +190,7 @@ export function OcrScanner() {
               <ScanLine className="h-4 w-4 text-slate-600" aria-hidden />
               Scanned sheet
             </h3>
-            <ScannedSheet evaluation={evaluation} />
+            <ScannedSheet evaluation={evaluation} imageUrl={imageUrl} />
             {evaluation.feedback && <p className="mt-2 text-sm text-slate-700">{evaluation.feedback}</p>}
           </div>
           <div>
@@ -257,7 +271,7 @@ export function OcrScanner() {
               </div>
             ) : (
               <>
-                <button type="button" className="btn-primary mt-3 w-full" disabled={syncing || invalidCell} onClick={verify}>
+                <button type="button" className="btn-primary mt-3 w-full" disabled={syncing || invalidCell || loading} onClick={verify}>
                   <CheckCircle2 className="h-4 w-4" aria-hidden />
                   {syncing ? "Syncing" : "Verify & Sync to Google Sheets"}
                 </button>

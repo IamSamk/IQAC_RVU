@@ -67,6 +67,7 @@ export function StudentPreview({
   courseCode,
   activity,
   pollAverage,
+  disabled,
   onVoted,
 }: {
   sessionId: string;
@@ -74,6 +75,7 @@ export function StudentPreview({
   courseCode: string;
   activity: ActivityResponse | null;
   pollAverage: number | null;
+  disabled: boolean;
   onVoted: (minute: number) => void;
 }) {
   const [focus, setFocus] = useState<number | null>(null);
@@ -144,7 +146,7 @@ export function StudentPreview({
             {sent}
           </p>
         ) : (
-          <button type="button" className="btn-primary w-full" disabled={focus === null || split === null || sending} onClick={sendVote}>
+          <button type="button" className="btn-primary w-full" disabled={focus === null || split === null || sending || disabled} onClick={sendVote}>
             <Send className="h-4 w-4" aria-hidden />
             {sending ? "Sending" : "Send to class poll"}
           </button>
