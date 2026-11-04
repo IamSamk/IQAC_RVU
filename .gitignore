@@ -31,3 +31,4 @@ server/uploads/
 
 # Marketing video build (local only)
 video/
+backend_dev.log

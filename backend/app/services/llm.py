@@ -114,3 +114,41 @@ def bridge_example(a: dict, b: dict, shared: list[str]) -> str | None:
               "example that connects them, using only concepts present in both chunks"
               + (f" (shared concepts: {', '.join(shared)})" if shared else "") + ". No outside facts.\n\n" + _chunk_block([a, b]))
     return text(prompt, timeout=40)
+
+
+SYLLABUS_SCHEMA = (
+    '{"course_title": str, "course_code": str|null, "credits": int|null, "ltp": {"l": int, "t": int, "p": int}|null, '
+    '"course_outcomes": [{"co": "CO1", "statement": str}], '
+    '"units": [{"unit_number": int, "title": str, "topics": [{"title": str, "content": str, "keywords": [str], '
+    '"bloom_level": "UNDERSTAND"|"APPLY"|"ANALYZE"|"CREATE", "co": "CO1".."CO5", "ltp_type": "L"|"T"|"P", '
+    '"estimated_minutes": int, "cognitive_complexity": float}]}]}'
+)
+
+
+def parse_syllabus(text_content: str | None = None, pdf: bytes | None = None) -> dict | None:
+    """Turn an uploaded syllabus into units -> teachable topics. Uses only the document's own wording."""
+    prompt = ("Read this university course syllabus and structure it for lesson planning. Keep the document's own unit "
+              "order and wording. Split each unit into 2-5 teachable topics (one topic is roughly one 40-60 minute class). "
+              "For each topic: a short title; 'content' = 1-3 sentences copied or closely paraphrased from the syllabus "
+              "(never add material that is not in it); 4-7 lowercase keywords taken from the text; Bloom level; the CO it "
+              "serves (map units to COs in order if the syllabus does not say); ltp_type 'P' only for lab/practical items; "
+              "estimated_minutes 30-90; cognitive_complexity 0.8 (easy) to 2.0 (maths-heavy). If course outcomes are listed, "
+              "copy them. Return JSON exactly in this shape: " + SYLLABUS_SCHEMA)
+    if pdf is not None:
+        return json_call(prompt, (pdf, "application/pdf"), timeout=150)
+    return json_call(prompt + "\n\nSYLLABUS:\n" + (text_content or "")[:60000], timeout=150)
+
+
+def lesson_plan(course: dict, section: str, session: dict, chunks: list[dict], persona: str | None, attention: dict,
+                platform: str) -> str | None:
+    splits = ", ".join(f"minute {s['start']}-{s['end']}" for s in attention.get("activity_splits", [])) or "none"
+    prompt = (f"Write a practical minute-by-minute plan for teaching this {session.get('session_duration_mins', 60)}-minute class "
+              f"of {course['course_code']} {course['course_title']} to section {section} (Session {session['session_number']}).\n"
+              f"Teacher's style: {persona or 'balanced'}.\n"
+              f"Attention model for this section's time slot predicts focus drops below 55% at minute "
+              f"{attention.get('dip_trigger_minute')}; schedule activity breaks at: {splits}. Use {platform} for the activities.\n"
+              "Markdown with: '## Goal' (one line), '## Flow' as a table | Minutes | What you do | What students do |, "
+              "'## Activity break' with 2 ready-to-use poll questions (with options and answers) written for the activity "
+              "platform, '## Board summary' (3-5 bullets), '## If you run short on time' (one line). Use only the topics below.\n\n"
+              f"TOPICS FOR TODAY:\n{_chunk_block(chunks)}")
+    return text(prompt, timeout=90)

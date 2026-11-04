@@ -180,3 +180,41 @@ def diagnostics(student_id: str) -> dict:
                           {"step": "Practice PYQs", "content": pyq_by_chunk.get(n["id"], [])},
                       ] if s]})
     return {"student_id": student_id, "weak_topics": len(route), "remediation_route": route}
+
+
+def build_course_links(course_id: str, threshold: float = 0.3, per_pair: int = 3) -> list[dict]:
+    """After a syllabus upload: chain the new course's topics, then link them to every other course its students take.
+    Closed-world: similarity and examples come only from the two syllabi."""
+    from app.services import llm
+    db = get_db()
+    chunks = rows(db.table("syllabus_chunks").select("*").eq("course_id", course_id).order("unit_number").order("sequence_order"))
+    if not chunks:
+        return []
+    db.table("knowledge_graph_edges").insert([
+        {"source_chunk_id": a["chunk_id"], "target_chunk_id": b["chunk_id"], "edge_type": "INTRA_COURSE_FLOW", "similarity_score": 1.0,
+         "shared_concepts": [], "grounded_application_example": "Sequential syllabus progression"} for a, b in zip(chunks, chunks[1:])
+    ]).execute() if len(chunks) > 1 else None
+
+    offerings = [o["offering_id"] for o in rows(db.table("course_offerings").select("offering_id").eq("course_id", course_id))]
+    students = {e["student_id"] for e in rows(db.table("student_enrollments").select("student_id").in_("offering_id", offerings))} if offerings else set()
+    other_courses = set()
+    if students:
+        for e in rows(db.table("student_enrollments").select("course_offerings(course_id)").in_("student_id", list(students))):
+            cid = (e.get("course_offerings") or {}).get("course_id")
+            if cid and cid != course_id:
+                other_courses.add(cid)
+    created = []
+    for other in other_courses:
+        theirs = rows(db.table("syllabus_chunks").select("*").eq("course_id", other).eq("is_deprecated", False))
+        pairs = [pr for pr in cross_course_pairs(chunks + theirs, threshold) if (pr["a"]["course_id"] == course_id) != (pr["b"]["course_id"] == course_id)]
+        for pr in pairs[:per_pair]:
+            a, b = (pr["a"], pr["b"]) if pr["a"]["course_id"] == course_id else (pr["b"], pr["a"])
+            shared = pr["shared"] or sorted(set(a.get("canonical_keywords") or []) & set(b.get("canonical_keywords") or []))
+            example = (llm.bridge_example(a, b, shared) if llm.enabled() else None) or (
+                f"Both '{a['topic_title']}' and '{b['topic_title']}' build on {', '.join(shared[:3]) or 'the same ideas'}.")
+            row = {"source_chunk_id": a["chunk_id"], "target_chunk_id": b["chunk_id"], "edge_type": "CROSS_SUBJECT_BRIDGE",
+                   "similarity_score": pr["score"], "shared_concepts": [s.title() for s in shared[:5]] or ["Related concepts"],
+                   "grounded_application_example": example.strip()}
+            db.table("knowledge_graph_edges").insert(row).execute()
+            created.append({"from": a["topic_title"], "to": b["topic_title"], "similarity": pr["score"], "shared": row["shared_concepts"]})
+    return created

@@ -63,6 +63,7 @@ def _votes(offering_id: str, session_number: int, seed: int):
 def seed_all() -> dict:
     db = get_db()
     res = db.rpc("seed_demo").execute().data
+    db.rpc("seed_accounts").execute()
     cs = pacing.generate_plan(O_CS304, preserve_completed=False)
     des = pacing.generate_plan(O_DES201, preserve_completed=False)
     cur = config.DEMO_CURRENT_SESSION

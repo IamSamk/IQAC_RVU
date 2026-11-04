@@ -5,6 +5,7 @@ With RBAC_STRICT=true a missing header is rejected. A present header with too lo
 """
 from fastapi import Depends, Header, HTTPException
 
+from app.core import auth
 from app.core.config import RBAC_STRICT
 from app.core.db import get_db, one
 
@@ -24,12 +25,18 @@ class Actor(dict):
         return self.get("hierarchy_rank", 0)
 
 
-def get_actor(x_user_id: str | None = Header(default=None)) -> Actor:
+def get_actor(x_user_id: str | None = Header(default=None), authorization: str | None = Header(default=None)) -> Actor:
+    # A signed login token wins over the demo role-switcher header.
+    if authorization and authorization.lower().startswith("bearer "):
+        uid = auth.verify(authorization.split(" ", 1)[1].strip())
+        if not uid:
+            raise HTTPException(401, "Session expired, please sign in again")
+        x_user_id = uid
     if not x_user_id:
         if RBAC_STRICT:
             raise HTTPException(401, "X-User-Id header required")
         return Actor(user_id=None, role_code="ANONYMOUS_DEMO", hierarchy_rank=0, inferred=True)
-    user = one(get_db().table("users").select("user_id, full_name, institution_id, role_id, roles(role_code, hierarchy_rank)").eq("user_id", x_user_id))
+    user = one(get_db().table("users").select("user_id, full_name, institution_id, email, role_id, semester, section, roles(role_code, hierarchy_rank)").eq("user_id", x_user_id))
     if not user:
         raise HTTPException(401, "Unknown user")
     role = user.pop("roles") or {}
@@ -48,3 +55,9 @@ def require_role(min_role: str):
         return actor
 
     return checker
+
+
+def require_login(actor: Actor = Depends(get_actor)) -> Actor:
+    if actor.get("inferred"):
+        raise HTTPException(401, "Please sign in")
+    return actor

@@ -1,5 +1,5 @@
 """Agent 1: Dynamic L:T:P pacing & self-healing recalibration."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.core import config
 from app.core.db import get_db, one, rows
@@ -226,6 +226,7 @@ def recalibrate_after(session: dict, covered_chunk_ids: list[str], minutes_behin
     db.table("session_plans").update({
         "covered_chunk_ids": covered_chunk_ids,
         "status": "COMPLETED",
+        "ended_at": datetime.now(timezone.utc).isoformat(),
         "pacing_delta_mins": -abs(minutes_behind) if minutes_behind else 0,
         "generated_class_notes_md": notes_md,
         "live_transcript_text": transcript if transcript is not None else session.get("live_transcript_text"),

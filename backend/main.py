@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.app_routes import app_api
 from app.api.routes import api
 from app.core.config import AUTO_SEED
 
@@ -29,6 +30,7 @@ app = FastAPI(
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(api)
+app.include_router(app_api)
 
 
 @app.get("/", tags=["Health"])
