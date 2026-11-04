@@ -36,6 +36,7 @@ class ActivityIn(BaseModel):
     delivery_platform: str = "IN_APP_10_SETS"  # MENTIMETER | KAHOOT | GOOGLE_CLASSROOM | IN_APP_10_SETS
     trigger_minute: int | None = None
     n_sets: int = 10
+    use_ai: bool = True
 
 
 class EndSessionIn(BaseModel):

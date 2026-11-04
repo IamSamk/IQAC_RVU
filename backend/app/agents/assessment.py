@@ -34,10 +34,18 @@ IA1_BLUEPRINT = {
 
 def evaluate(offering_id: str, payload: dict) -> dict:
     db = get_db()
-    student = one(db.table("users").select("user_id, full_name, institution_id").eq("institution_id", payload["student_usn"]))
-    if not student:
-        raise ValueError(f"Unknown USN {payload['student_usn']}")
+    usn = (payload["student_usn"] or "").strip().upper().replace(" ", "")
     marks, flags, weak = {}, [], []
+    student = one(db.table("users").select("user_id, full_name, institution_id").eq("institution_id", usn))
+    if not student:
+        # OCR often confuses O/0, I/1, S/5: snap to the closest enrolled USN and flag it for HITL
+        import difflib
+        cands = rows(db.table("users").select("user_id, full_name, institution_id").eq("role_id", 8))
+        best = difflib.get_close_matches(usn, [c["institution_id"] for c in cands], n=1, cutoff=0.8)
+        if not best:
+            raise ValueError(f"Unknown USN {usn}")
+        student = next(c for c in cands if c["institution_id"] == best[0])
+        flags.append({"q": "USN", "reason": f"OCR read '{usn}', auto-matched to {best[0]}", "status": "Requires Faculty Verification"})
     total = 0
     for cell in payload["cells"]:
         chunk_id, co = IA1_BLUEPRINT.get(cell["q"], (None, None))
