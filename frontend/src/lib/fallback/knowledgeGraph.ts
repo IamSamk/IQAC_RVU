@@ -1,14 +1,14 @@
 import type { Flashcard, KGEdge, KGNode, KnowledgeGraph, QuizQuestion } from "@/types";
 
 const card = (front: string, back: string): Flashcard => ({ front, back });
-const ask = (question: string, options: string[], answer_index: number): QuizQuestion => ({
+const ask = (question: string, options: string[], answerIndex: number): QuizQuestion => ({
   question,
   options,
-  answer_index,
+  answer: options[answerIndex],
 });
 
-type NodeSeed = Omit<KGNode, "kind" | "weak"> & { weak?: boolean };
-const chunk = (seed: NodeSeed): KGNode => ({ ...seed, kind: "chunk", weak: seed.weak ?? false });
+type NodeSeed = Omit<KGNode, "kind" | "weak" | "when"> & { day: number; weak?: boolean };
+const chunk = ({ day, weak, ...seed }: NodeSeed): KGNode => ({ ...seed, kind: "chunk", when: `Day ${day}`, weak: weak ?? false });
 
 const nodes: KGNode[] = [
   chunk({
@@ -261,7 +261,6 @@ const nodes: KGNode[] = [
     course_code: "BRIDGE",
     unit: 0,
     chunk: 0,
-    day: 0,
     title: "Aperture (f-stop) & Depth of Field / Circle of Confusion",
     weak: false,
     notes_md:
@@ -284,7 +283,6 @@ const nodes: KGNode[] = [
     course_code: "BRIDGE",
     unit: 0,
     chunk: 0,
-    day: 0,
     title: "Sensor ISO, Exposure & Image Noise",
     weak: false,
     notes_md:

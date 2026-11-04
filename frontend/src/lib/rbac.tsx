@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { RoleId } from "@/types";
+import { setActor } from "./api";
 
 export interface RouteDef {
   href: string;
@@ -19,45 +20,46 @@ export const ROUTES = {
 
 export interface RoleDef {
   id: RoleId;
+  /** Sent as X-User-Id, so the backend applies this role's rank. */
+  userId: string;
   name: string;
   short: string;
   detail: string;
   routes: RouteDef[];
-  canApprove: boolean;
 }
 
 export const ROLES: RoleDef[] = [
   {
     id: "faculty",
+    userId: "20000000-0000-0000-0000-000000000002",
     name: "Prof. S. Darshan",
     short: "Faculty",
     detail: "Computer Vision CS304, L:T:P 3:0:1",
     routes: [ROUTES.pacing, ROUTES.live, ROUTES.evaluation],
-    canApprove: true,
   },
   {
     id: "student",
+    userId: "20000000-0000-0000-0000-000000000005",
     name: "Aarav Sharma",
     short: "Student",
     detail: "Major: Computer Vision, Elective: Digital Photography",
     routes: [ROUTES.graph, ROUTES.live],
-    canApprove: false,
   },
   {
     id: "junior",
+    userId: "20000000-0000-0000-0000-000000000006",
     name: "Riya Patel",
     short: "Junior",
     detail: "Searching revised 2026 syllabus PYQs",
     routes: [ROUTES.pyq],
-    canApprove: false,
   },
   {
     id: "iqac",
+    userId: "20000000-0000-0000-0000-000000000001",
     name: "Dr. Veena A.",
     short: "IQAC Admin",
     detail: "RBAC matrix, CO-PO rubrics, department compliance",
     routes: [ROUTES.admin, ROUTES.evaluation],
-    canApprove: false,
   },
 ];
 
@@ -94,10 +96,12 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(
-    () => ({ role: ROLES.find((role) => role.id === roleId) ?? ROLES[0], hydrated, setRole }),
-    [roleId, hydrated, setRole],
-  );
+  const value = useMemo(() => {
+    const role = ROLES.find((item) => item.id === roleId) ?? ROLES[0];
+    // Set during render, not in an effect, so it applies before children's requests.
+    setActor(role.userId);
+    return { role, hydrated, setRole };
+  }, [roleId, hydrated, setRole]);
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }

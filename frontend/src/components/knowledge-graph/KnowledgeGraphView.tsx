@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertCircle, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
-import { Badge, Card, PageHeader } from "@/components/ui/primitives";
+import { Badge, Card, CardHeader, PageHeader } from "@/components/ui/primitives";
 import { api, useResource } from "@/lib/api";
 import { fallbackGraph } from "@/lib/fallback/knowledgeGraph";
 import type { KGNode } from "@/types";
@@ -26,10 +26,10 @@ export function KnowledgeGraphView() {
     <>
       <PageHeader
         title="Cross-Subject Knowledge Graph"
-        description="Aarav's enrolled courses as day-by-day timelines, joined wherever the syllabus teaches the same idea. Select a topic to study it."
+        description="Aarav's enrolled courses as chronological timelines, joined wherever the syllabus teaches the same idea. Select a topic to study it."
         action={
           <Badge tone="success" className="px-3 py-1.5">
-            <ShieldCheck className="h-4 w-4" aria-hidden />
+            <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
             100% Grounded in Uploaded RVU Syllabus Chunks (Zero External Web Hallucination)
           </Badge>
         }
@@ -57,16 +57,34 @@ export function KnowledgeGraphView() {
         </div>
       </Card>
 
+      {weak.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader title="Your remediation plan" description="Topics where you lost marks in IA-1. Each opens with notes, flashcards and a quick quiz." />
+          <ul className="grid gap-2 md:grid-cols-2">
+            {weak.map((node) => (
+              <li key={node.id}>
+                <button type="button" className="btn-outline h-full w-full justify-between text-left" onClick={() => setSelected(node)}>
+                  <span>
+                    <span className="block text-xs text-critical-700">{node.weak_reason ?? "Needs revision"}</span>
+                    {node.title}
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm">
-        <summary className="font-medium text-brand-700">Browse topics as a list</summary>
+        <summary className="font-medium text-brand-700">Browse all topics as a list</summary>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {graph.nodes.map((node) => (
             <li key={node.id}>
               <button type="button" className="btn-outline h-full w-full justify-start text-left" onClick={() => setSelected(node)}>
                 <span>
-                  <span className="block text-xs text-slate-600">{node.kind === "bridge" ? "Cross-subject bridge" : `${node.course_code}, Day ${node.day}`}</span>
+                  <span className="block text-xs text-slate-600">{node.kind === "bridge" ? "Cross-subject bridge" : `${node.course_code}, Unit ${node.unit}`}</span>
                   {node.title}
-                  {node.weak && <span className="block text-xs font-medium text-critical-700">{node.weak_reason ?? "Needs revision"}</span>}
                 </span>
               </button>
             </li>

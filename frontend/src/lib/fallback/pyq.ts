@@ -18,7 +18,7 @@ const valid = (
   similarity,
   mapped_unit,
   co_code,
-  origin_course_code: "CS204",
+  origin_course_code: "CS204-2024",
   status: "VALID",
 });
 
@@ -38,15 +38,18 @@ const blocked = (
   marks,
   similarity,
   deprecated_reason,
-  origin_course_code: "CS204",
+  origin_course_code: "CS204-2024",
   status: "FILTERED_OUT_DEPRECATED",
 });
 
 export const fallbackPyq: PyqResult = {
   course_code: "CS304",
-  predecessor_code: "CS204",
-  overlap_percent: 78,
-  approved_by: "Course Lead, Prof. S. Darshan",
+  course_title: "Foundations of Computer Vision",
+  predecessor_code: "CS204-2024",
+  predecessor_title: "Intro to Image Processing & Legacy Vision",
+  overlap_percent: 75,
+  threshold: 0.85,
+  approved_by: "Course Lead, Prof. Rao",
   retained_topics: ["Pinhole camera model", "Thin lens and aperture", "Spatial filtering", "Edge detection", "Camera calibration"],
   added_topics: ["Radiometric calibration", "Depth from defocus", "Stereo depth", "Feature matching and RANSAC"],
   deprecated_topics: ["CRT display gamma", "Analog film grain", "Analog video signal sampling"],

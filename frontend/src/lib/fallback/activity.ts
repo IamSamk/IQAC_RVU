@@ -1,6 +1,6 @@
 import type { ActivityResponse, QuestionSet } from "@/types";
 
-export const LEARNING_GOAL = "Compute the f-number of a lens from its focal length and aperture diameter (N = f / D).";
+const LEARNING_GOAL = "Compute the f-number of a lens from its focal length and aperture diameter (N = f / D).";
 
 /** Same skill, different numbers, so neighbours cannot copy an answer. */
 const LENSES: [focal: number, diameter: number][] = [
@@ -23,9 +23,14 @@ export function buildQuestionSets(): QuestionSet[] {
     const shift = index % options.length;
     return {
       set_number: index + 1,
-      question: `A lens has a focal length of ${focal} mm and an aperture diameter of ${diameter} mm. What is its f-number?`,
-      options: [...options.slice(shift), ...options.slice(0, shift)],
-      answer_index: (options.length - shift) % options.length,
+      questions: [
+        {
+          question: `A lens has a focal length of ${focal} mm and an aperture diameter of ${diameter} mm. What is its f-number?`,
+          options: [...options.slice(shift), ...options.slice(0, shift)],
+          answer: options[0],
+          explanation: "N = f / D.",
+        },
+      ],
     };
   });
 }
@@ -34,15 +39,11 @@ export function buildActivity(platform: string): ActivityResponse {
   return {
     learning_goal: LEARNING_GOAL,
     delivery_platform: platform,
-    question_sets_json: buildQuestionSets(),
-    webhook_payload: {
-      platform,
-      session_number: 12,
-      chunk: "CS304 Unit 2 Chunk 3",
+    question_sets: buildQuestionSets(),
+    platform_sync: {
+      status: platform === "IN_APP_10_SETS" ? "LIVE" : "QUEUED_MOCK",
+      assignment: "student i receives set ((seat_index) mod 10) + 1",
       trigger_minute: 20,
-      duration_mins: 7,
-      question_sets: 10,
-      assignment: "seat_number mod 10",
     },
   };
 }

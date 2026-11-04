@@ -16,14 +16,14 @@ export const DEMO_STEPS: DemoStep[] = [
     minutes: 1.5,
     role: "faculty",
     href: ROUTES.pacing.href,
-    action: "Pick a teaching style, keep the 15-minute shortfall, and press Recalibrate Semester Plan.",
+    action: "Show the Session 12 shortfall, pick a teaching style, and press Recalibrate Semester Plan.",
   },
   {
     title: "Live class and audio failure",
     minutes: 1.5,
     role: "faculty",
     href: ROUTES.live.href,
-    action: "Press Simulate Mic/Wi-Fi Drop, then tap the slide reached. Pacing still recalibrates.",
+    action: "Press Simulate Mic/Wi-Fi Drop, then tap what you reached. Pacing still recalibrates.",
   },
   {
     title: "Attention decay graphs",
@@ -51,7 +51,7 @@ export const DEMO_STEPS: DemoStep[] = [
     minutes: 1,
     role: "junior",
     href: ROUTES.pyq.href,
-    action: "Show the 78% overlap, then open the blocked outdated questions tray.",
+    action: "Show the syllabus overlap, then open the blocked outdated questions tray.",
   },
   {
     title: "OCR verification",

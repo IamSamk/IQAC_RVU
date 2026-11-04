@@ -1,73 +1,92 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type {
-  ActivityResponse,
-  AttentionModel,
-  CopilotTask,
-  DataSource,
-  KnowledgeGraph,
-  OcrEvaluation,
-  PacingPlan,
-  PyqResult,
-} from "@/types";
+import type { AttentionModel, CheckpointResult, DataSource, EvaluationData, LiveClassData, OcrEvaluation, RecalibrationSummary } from "@/types";
+import {
+  adaptActivity,
+  adaptAttainment,
+  adaptAttention,
+  adaptAudit,
+  adaptCheckpoint,
+  adaptCompliance,
+  adaptEvaluationList,
+  adaptGraph,
+  adaptLiveSession,
+  adaptMemory,
+  adaptPacing,
+  adaptPyq,
+  adaptRecalibration,
+  adaptTasks,
+  adaptUpload,
+} from "./adapters";
 import { fallbackAttentionModel } from "./attention";
 import { buildActivity } from "./fallback/activity";
-import { fallbackTasks } from "./fallback/copilot";
+import { fallbackCompliance } from "./fallback/compliance";
+import { fallbackMemory, fallbackTasks } from "./fallback/copilot";
 import { fallbackGraph } from "./fallback/knowledgeGraph";
-import { fallbackEvaluation } from "./fallback/ocr";
+import { fallbackLiveSession } from "./fallback/liveSession";
+import { fallbackAttainment, fallbackEvaluation } from "./fallback/ocr";
 import { fallbackPacing } from "./fallback/pacing";
 import { fallbackPyq } from "./fallback/pyq";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/$/, "");
-const TIMEOUT_MS = 3000;
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://campusai-backend-ak60.onrender.com/api/v1").replace(/\/$/, "");
+const HEALTH_URL = `${API_URL.replace(/\/api\/v\d+$/, "")}/health`;
 
-const ids = {
-  offering: process.env.NEXT_PUBLIC_DEMO_OFFERING_ID || "demo-offering-cs304",
-  session: process.env.NEXT_PUBLIC_DEMO_SESSION_ID || "demo-session-12",
-  student: process.env.NEXT_PUBLIC_DEMO_STUDENT_ID || "demo-student-aarav",
-  faculty: process.env.NEXT_PUBLIC_DEMO_FACULTY_ID || "demo-faculty-darshan",
-  course: process.env.NEXT_PUBLIC_DEMO_COURSE_ID || "demo-course-cs304",
-  evaluation: process.env.NEXT_PUBLIC_DEMO_EVAL_ID || "demo-eval-ia1",
+/** Render can take close to a minute to wake a sleeping service. */
+const COLD_START_TIMEOUT_MS = 60_000;
+const UNREACHABLE_TIMEOUT_MS = 5_000;
+
+/** Stable IDs from the backend seed. */
+export const IDS = {
+  offering: process.env.NEXT_PUBLIC_DEMO_OFFERING_ID || "40000000-0000-0000-0000-000000000001",
+  course: process.env.NEXT_PUBLIC_DEMO_COURSE_ID || "30000000-0000-0000-0000-000000000001",
+  student: "20000000-0000-0000-0000-000000000005",
+  faculty: "20000000-0000-0000-0000-000000000002",
 };
+export const DEMO_USN = "1RVU23CSE042";
 
 export interface ApiResult<T> {
   data: T;
   source: DataSource;
+  /** Why the demo data was used, written to complete "because ...". */
+  note?: string;
 }
 
-type Guard<T> = (value: unknown) => value is T;
+const OFFLINE = "the backend is offline";
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+let actorId: string | null = null;
+let reachable = true;
 
-const hasArrays = (value: unknown, ...keys: string[]) =>
-  isRecord(value) && keys.every((key) => Array.isArray(value[key]));
+/** The backend reads the current role from this header. */
+export function setActor(userId: string) {
+  actorId = userId;
+}
 
-const isPacing: Guard<PacingPlan> = (v): v is PacingPlan =>
-  hasArrays(v, "sessions", "milestones") && typeof (v as Record<string, unknown>).course_code === "string";
-const isAttention: Guard<AttentionModel> = (v): v is AttentionModel =>
-  hasArrays(v, "t", "passive_curve", "active_intervened_curve", "strata_curves") &&
-  typeof (v as Record<string, unknown>).dip_trigger_minute === "number";
-const isGraph: Guard<KnowledgeGraph> = (v): v is KnowledgeGraph => hasArrays(v, "nodes", "edges");
-const isPyq: Guard<PyqResult> = (v): v is PyqResult =>
-  hasArrays(v, "questions", "retained_topics", "added_topics", "deprecated_topics");
-const isEvaluation: Guard<OcrEvaluation> = (v): v is OcrEvaluation =>
-  hasArrays(v, "cells") && typeof (v as Record<string, unknown>).eval_id === "string";
-const isActivity: Guard<ActivityResponse> = (v): v is ActivityResponse =>
-  hasArrays(v, "question_sets_json") && (v as { question_sets_json: unknown[] }).question_sets_json.length > 0;
-const isTasks: Guard<CopilotTask[]> = (v): v is CopilotTask[] => Array.isArray(v);
-const isAnything: Guard<unknown> = (v): v is unknown => v !== undefined;
+async function call<T>(path: string, init: RequestInit, fallback: T, parse: (raw: unknown) => T): Promise<ApiResult<T>> {
+  const isWrite = Boolean(init.method) && init.method !== "GET";
+  if (isWrite && !reachable) return { data: fallback, source: "demo", note: OFFLINE };
 
-async function call<T>(path: string, init: RequestInit, fallback: T, guard: Guard<T>): Promise<ApiResult<T>> {
+  let response: Response;
   try {
-    const response = await fetch(`${API_URL}${path}`, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!response.ok) return { data: fallback, source: "demo" };
-    const text = await response.text();
-    const body: unknown = text ? JSON.parse(text) : {};
-    return guard(body) ? { data: body, source: "live" } : { data: fallback, source: "demo" };
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: { ...init.headers, ...(actorId ? { "X-User-Id": actorId } : {}) },
+      signal: AbortSignal.timeout(reachable ? COLD_START_TIMEOUT_MS : UNREACHABLE_TIMEOUT_MS),
+    });
+    reachable = true;
   } catch {
-    return { data: fallback, source: "demo" };
+    reachable = false;
+    return { data: fallback, source: "demo", note: OFFLINE };
+  }
+
+  if (!response.ok) {
+    return { data: fallback, source: "demo", note: `the backend rejected the request (${response.status})` };
+  }
+  try {
+    const text = await response.text();
+    return { data: parse(text ? JSON.parse(text) : {}), source: "live" };
+  } catch {
+    return { data: fallback, source: "demo", note: "the backend returned an unexpected response" };
   }
 }
 
@@ -78,40 +97,87 @@ const postJson = (body: unknown): RequestInit => ({
 });
 
 const q = encodeURIComponent;
+const any = (raw: unknown) => raw;
+const asAny = <T,>(adapter: (raw: never) => T) => adapter as unknown as (raw: unknown) => T;
+
+const FALLBACK_MODEL = fallbackAttentionModel();
 
 export const api = {
-  getPacing: () => call(`/pacing/${q(ids.offering)}`, {}, fallbackPacing, isPacing),
-  recalibratePacing: (body: unknown) =>
-    call<PacingPlan | null>(`/pacing/${q(ids.offering)}`, postJson(body), null, isPacing as Guard<PacingPlan | null>),
-  getAttention: () =>
-    call(`/live-class/${q(ids.session)}/attention-model`, {}, fallbackAttentionModel(), isAttention),
-  fallbackCheckpoint: (body: { slide?: number; topic?: string }) =>
-    call(`/live-class/${q(ids.session)}/fallback-checkpoint`, postJson(body), null as unknown, isAnything),
-  triggerActivity: (platform: string) =>
-    call(
-      `/live-class/${q(ids.session)}/trigger-activity`,
-      postJson({ delivery_platform: platform }),
-      buildActivity(platform),
-      isActivity,
-    ),
-  getGraph: () => call(`/knowledge-graph/${q(ids.student)}`, {}, fallbackGraph, isGraph),
-  getPyq: () => call(`/pyq/search?course_id=${q(ids.course)}`, {}, fallbackPyq, isPyq),
-  evaluateSheet: (file?: File) => {
-    const form = new FormData();
-    if (file) form.append("file", file);
-    else form.append("sample", "ia1-1RVU23CSE042");
-    return call(`/ocr/evaluate-sheet`, { method: "POST", body: form }, fallbackEvaluation, isEvaluation);
+  ping: async () => {
+    try {
+      const response = await fetch(HEALTH_URL, { signal: AbortSignal.timeout(COLD_START_TIMEOUT_MS) });
+      reachable = response.ok;
+    } catch {
+      reachable = false;
+    }
   },
-  approveAndSync: (evalId: string, body: unknown) =>
-    call(`/ocr/${q(evalId)}/approve-and-sync`, postJson(body), null as unknown, isAnything),
-  getTasks: () => call(`/copilot/tasks?faculty_id=${q(ids.faculty)}`, {}, fallbackTasks, isTasks),
-  approveTask: (taskId: string) =>
-    call(`/copilot/tasks/${q(taskId)}/approve`, { method: "POST" }, null as unknown, isAnything),
-  seedDemo: () => call(`/seed-demo`, { method: "POST" }, null as unknown, isAnything),
+
+  getPacing: () => call(`/pacing/${q(IDS.offering)}`, {}, fallbackPacing, asAny(adaptPacing)),
+  recalibratePacing: (body: { pedagogical_system_prompt: string }) =>
+    call<RecalibrationSummary | null>(`/pacing/${q(IDS.offering)}`, postJson({ ...body, preserve_completed: true }), null, asAny(adaptRecalibration)),
+
+  getLiveClass: async (): Promise<ApiResult<LiveClassData>> => {
+    const fallback: LiveClassData = { session: fallbackLiveSession, model: FALLBACK_MODEL };
+    const current = await call<unknown>(`/live-class/current?offering_id=${q(IDS.offering)}`, {}, null, any);
+    if (current.source === "demo" || !current.data) return { data: fallback, source: "demo", note: current.note };
+    const chunks = await call<unknown[]>(`/courses/${q(IDS.course)}/chunks`, {}, [], asAny((raw: unknown[]) => raw));
+    try {
+      const session = adaptLiveSession(current.data, chunks.data);
+      const model = await call(`/live-class/${q(session.session_id)}/attention-model?use_poll=false`, {}, FALLBACK_MODEL, asAny(adaptAttention));
+      return { data: { session, model: model.data }, source: model.source, note: model.note };
+    } catch {
+      return { data: fallback, source: "demo", note: "the backend returned an unexpected response" };
+    }
+  },
+  getAttentionVariant: (sessionId: string, params: Record<string, string>, fallback: AttentionModel) =>
+    call(`/live-class/${q(sessionId)}/attention-model?${new URLSearchParams(params)}`, {}, fallback, asAny(adaptAttention)),
+  sendVote: (sessionId: string, body: { minute_of_class: number; reported_focus_score: number; preferred_split_min: number }) =>
+    call<unknown>(`/live-class/${q(sessionId)}/attention-vote`, postJson({ student_id: IDS.student, ...body }), null, any),
+  fallbackCheckpoint: (sessionId: string, body: { slide_number?: number; chunk_id?: string; topic?: string }) =>
+    call<CheckpointResult | null>(`/live-class/${q(sessionId)}/fallback-checkpoint`, postJson(body), null, asAny(adaptCheckpoint)),
+  triggerActivity: (sessionId: string, platform: string) =>
+    call(`/live-class/${q(sessionId)}/trigger-activity`, postJson({ delivery_platform: platform }), buildActivity(platform), asAny(adaptActivity)),
+
+  getGraph: () => call(`/knowledge-graph/${q(IDS.student)}`, {}, fallbackGraph, asAny(adaptGraph)),
+  getPyq: () => call(`/pyq/search?course_id=${q(IDS.course)}`, {}, fallbackPyq, asAny(adaptPyq)),
+
+  getEvaluation: async (): Promise<ApiResult<EvaluationData>> => {
+    const fallback: EvaluationData = { evaluation: fallbackEvaluation, attainment: fallbackAttainment };
+    const list = await call<OcrEvaluation | null>(
+      `/ocr/evaluations?offering_id=${q(IDS.offering)}`,
+      {},
+      null,
+      (raw) => adaptEvaluationList(raw as unknown[], DEMO_USN),
+    );
+    if (list.source === "demo" || !list.data) return { data: fallback, source: "demo", note: list.note };
+    const attainment = await call(`/assessments/co-attainment/${q(IDS.offering)}`, {}, fallbackAttainment, asAny(adaptAttainment));
+    return { data: { evaluation: list.data, attainment: attainment.data }, source: attainment.source, note: attainment.note };
+  },
+  uploadSheet: (file: File) => {
+    const form = new FormData();
+    form.append("image", file);
+    form.append("offering_id", IDS.offering);
+    return call<ReturnType<typeof adaptUpload> | null>(`/ocr/evaluate-sheet/upload`, { method: "POST", body: form }, null, asAny(adaptUpload));
+  },
+  approveAndSync: (evalId: string, corrections: Record<string, number>) =>
+    call<ReturnType<typeof adaptAttainment> | null>(`/ocr/${q(evalId)}/approve-and-sync`, postJson({ corrections }), null, (raw) =>
+      adaptAttainment((raw as { co_attainment: unknown }).co_attainment),
+    ),
+
+  getTasks: () => call(`/copilot/tasks?faculty_id=${q(IDS.faculty)}`, {}, fallbackTasks, asAny(adaptTasks)),
+  approveTask: (taskId: string) => call<unknown>(`/copilot/tasks/${q(taskId)}/approve`, { method: "POST" }, null, any),
+  getMemory: () => call(`/copilot/memory/${q(IDS.faculty)}`, {}, fallbackMemory, asAny(adaptMemory)),
+
+  getCompliance: async () => {
+    const audit = await call(`/audit-logs?limit=10`, {}, fallbackCompliance.audit, asAny(adaptAudit));
+    return call(`/admin/compliance`, {}, fallbackCompliance, (raw) => adaptCompliance(raw, audit.data));
+  },
+
+  seedDemo: () => call<unknown>(`/seed-demo`, { method: "POST" }, null, any),
 };
 
 /* Tracks where the current page's data came from, for the badge in the top bar. */
-const sources = new Map<string, DataSource>();
+const sources = new Map<unknown, DataSource>();
 const listeners = new Set<() => void>();
 let snapshot: DataSource | "mixed" | "idle" = "idle";
 
@@ -140,7 +206,7 @@ export function useDataSource() {
 }
 
 /**
- * Renders the demo data immediately and swaps in the backend's data if it
+ * Renders the demo data immediately and swaps in the backend's data when it
  * responds. `load` must be a stable reference, such as a method of `api`.
  */
 export function useResource<T>(load: () => Promise<ApiResult<T>>, fallback: T) {
@@ -154,8 +220,8 @@ export function useResource<T>(load: () => Promise<ApiResult<T>>, fallback: T) {
     let active = true;
     load().then((result) => {
       if (!active) return;
-      setState({ ...result, loading: false });
-      sources.set(load.name || String(load), result.source);
+      setState({ data: result.data, source: result.source, loading: false });
+      sources.set(load, result.source);
       publish();
     });
     return () => {

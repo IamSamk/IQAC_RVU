@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 import type { RoleId } from "@/types";
 
 const SOURCE_COPY = {
-  idle: { label: "Checking API", dot: "bg-slate-400" },
+  idle: { label: "Connecting", dot: "bg-slate-400" },
   live: { label: "Live API", dot: "bg-success-500" },
   mixed: { label: "Partly live", dot: "bg-gold-500" },
   demo: { label: "Offline demo data", dot: "bg-gold-500" },
@@ -127,14 +127,23 @@ function DemoStepper({ onGoTo }: { onGoTo: (index: number) => void }) {
   );
 }
 
+/** Often enough that a free Render service does not go to sleep mid-demo. */
+const KEEP_AWAKE_MS = 10 * 60 * 1000;
+
 function Shell({ children }: { children: ReactNode }) {
   const { role, setRole } = useRole();
   const pathname = usePathname();
   const router = useRouter();
+  const source = useDataSource();
 
   useEffect(() => {
     resetSources();
   }, [pathname]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void api.ping(), KEEP_AWAKE_MS);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const switchRole = (id: RoleId) => {
     const next = ROLES.find((item) => item.id === id);
@@ -190,6 +199,11 @@ function Shell({ children }: { children: ReactNode }) {
           })}
         </div>
       </nav>
+      {source === "idle" && (
+        <p role="status" className="border-b border-amber-200 bg-gold-50 px-4 py-1.5 text-center text-xs text-gold-700">
+          Connecting to the live backend. It can take up to a minute to wake, and demo data shows until then.
+        </p>
+      )}
       <main className="mx-auto max-w-7xl px-4 py-5 sm:py-6">{children}</main>
     </>
   );

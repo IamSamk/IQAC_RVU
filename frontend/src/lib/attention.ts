@@ -1,8 +1,8 @@
-import type { AttentionModel, StrataCurve } from "@/types";
+import type { ActivitySplitRange, AttentionModel, StrataCurve } from "@/types";
 
 /**
- * Client-side copy of the attention decay model, used for offline demos and for
- * the "selected cohort" filter:
+ * Offline copy of the attention decay model. When the backend is reachable its
+ * curves are used instead, and only this file's labels and cohort types apply.
  *
  *   A(t) = floor + (peak - floor) * exp(-lambda0 * alpha * beta * gamma * delta * max(0, t - tPeak)^1.4)
  *
@@ -45,6 +45,8 @@ export const COHORT_LABEL: Record<Cohort, string> = {
   UG2_3: "2nd/3rd-year UG",
   UG4_PG: "4th-year / PG",
 };
+/** The backend derives the cohort multiplier from the semester. */
+export const COHORT_SEMESTER: Record<Cohort, number> = { UG1: 1, UG2_3: 5, UG4_PG: 8 };
 export const SLOT_LABEL: Record<Slot, string> = {
   MORNING_09AM: "Morning, 9 AM",
   MIDDAY_11AM: "Midday, 11 AM",
@@ -106,18 +108,13 @@ export function dipMinute(p: CohortParams): number {
   return DURATION;
 }
 
-export interface ActivitySplit {
-  start: number;
-  end: number;
-}
-
-export const DEFAULT_SPLITS: ActivitySplit[] = [
+export const DEFAULT_SPLITS: ActivitySplitRange[] = [
   { start: 20, end: 27 },
   { start: 43, end: 50 },
 ];
 
-export function activeAt(t: number, p: CohortParams, splits: ActivitySplit[]): number {
-  let decayFrom: ActivitySplit | null = null;
+export function activeAt(t: number, p: CohortParams, splits: ActivitySplitRange[]): number {
+  let decayFrom: ActivitySplitRange | null = null;
   const valueBefore = (minute: number) =>
     decayFrom === null
       ? passiveAt(minute, p)
@@ -142,25 +139,34 @@ export function activeAt(t: number, p: CohortParams, splits: ActivitySplit[]): n
 const minutes = Array.from({ length: DURATION + 1 }, (_, t) => t);
 
 export const curveFor = (p: CohortParams) => minutes.map((t) => round(passiveAt(t, p)));
-export const activeCurveFor = (p: CohortParams, splits: ActivitySplit[]) =>
-  minutes.map((t) => round(activeAt(t, p, splits)));
+const activeCurveFor = (p: CohortParams, splits: ActivitySplitRange[]) => minutes.map((t) => round(activeAt(t, p, splits)));
 
 const LIVE_CLASS_PARAMS: CohortParams = STRATA_PRESETS[1].params;
+const SEEDED_POLL = { votes: 5, avg_preferred_split_min: 22 };
 
-export const liveClassParams = () => LIVE_CLASS_PARAMS;
-
-export function fallbackAttentionModel(): AttentionModel {
+/** Pass a poll minute to move the first activity to where students asked for it. */
+export function fallbackAttentionModel(pollMinute?: number): AttentionModel {
   const strata_curves: StrataCurve[] = STRATA_PRESETS.map((preset) => ({
     key: preset.key,
+    stratum: preset.key,
     label: preset.label,
     curve: curveFor(preset.params),
     dip_minute: dipMinute(preset.params),
   }));
+  const splits = pollMinute === undefined ? DEFAULT_SPLITS : [{ start: pollMinute, end: pollMinute + 7 }, DEFAULT_SPLITS[1]];
   return {
     t: minutes,
     passive_curve: curveFor(LIVE_CLASS_PARAMS),
-    active_intervened_curve: activeCurveFor(LIVE_CLASS_PARAMS, DEFAULT_SPLITS),
+    active_intervened_curve: activeCurveFor(LIVE_CLASS_PARAMS, splits),
     strata_curves,
-    dip_trigger_minute: dipMinute(LIVE_CLASS_PARAMS),
+    dip_trigger_minute: pollMinute ?? dipMinute(LIVE_CLASS_PARAMS),
+    activity_splits: splits,
+    threshold: THETA,
+    student_poll: SEEDED_POLL,
+    citations: [
+      "Stuart & Rutherford (1978) Medical student concentration during lectures, The Lancet",
+      "Bunce, Flens & Neiles (2010) How long can students pay attention in class?, J. Chem. Educ.",
+      "IUCEE faculty-development guidance on active-learning breaks",
+    ],
   };
 }

@@ -1,26 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/ui/ChartTooltip";
 import { Card, CardHeader, DataTableDetails } from "@/components/ui/primitives";
+import { api } from "@/lib/api";
 import {
   COHORT_LABEL,
-  DEFAULT_SPLITS,
+  COHORT_SEMESTER,
   SLOT_LABEL,
   STRATA_PRESETS,
   STRATUM_LABEL,
-  THETA,
-  activeCurveFor,
   curveFor,
   dipMinute,
-  liveClassParams,
+  fallbackAttentionModel,
   type Cohort,
   type Slot,
   type Stratum,
 } from "@/lib/attention";
 import { CHART } from "@/lib/chart";
-import type { AttentionModel } from "@/types";
+import type { AttentionModel, StrataCurve } from "@/types";
 
 const TICKS = [0, 10, 20, 30, 40, 50, 60];
 const Y_TICKS = [0, 20, 40, 60, 80, 100];
@@ -38,22 +37,16 @@ const axisProps = {
 
 const everyFifth = <T,>(rows: T[]) => rows.filter((_, index) => index % 5 === 0);
 
-function DecayChart({ model, pollMinute }: { model: AttentionModel; pollMinute: number | null }) {
-  const splits = useMemo(() => {
-    if (pollMinute === null) return DEFAULT_SPLITS;
-    return [{ start: pollMinute, end: pollMinute + 7 }, DEFAULT_SPLITS[1]];
-  }, [pollMinute]);
-
-  const data = useMemo(() => {
-    const active = pollMinute === null ? model.active_intervened_curve : activeCurveFor(liveClassParams(), splits);
-    return model.t.map((t, index) => ({ t, passive: model.passive_curve[index], active: active[index] }));
-  }, [model, pollMinute, splits]);
-
+function DecayChart({ model }: { model: AttentionModel }) {
+  const data = useMemo(
+    () => model.t.map((t, index) => ({ t, passive: model.passive_curve[index], active: model.active_intervened_curve[index] })),
+    [model],
+  );
   return (
     <Card>
       <CardHeader
         title="Passive decay vs. CampusAI attention resets"
-        description={`A passive lecture crosses the ${THETA}% threshold near minute ${Math.round(model.dip_trigger_minute)}. Activity splits restore attention before it collapses.`}
+        description={`Activity starts at minute ${Math.round(model.dip_trigger_minute)}, as a passive lecture nears the ${model.threshold}% threshold. Each activity restores attention before it collapses.`}
       />
       <div className="h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -69,7 +62,7 @@ function DecayChart({ model, pollMinute }: { model: AttentionModel; pollMinute: 
             />
             <YAxis domain={[0, 100]} ticks={Y_TICKS} unit="%" {...axisProps} />
             <Tooltip content={<ChartTooltip />} />
-            {splits.map((split, index) => (
+            {model.activity_splits.map((split, index) => (
               <ReferenceArea
                 key={split.start}
                 x1={split.start}
@@ -81,57 +74,46 @@ function DecayChart({ model, pollMinute }: { model: AttentionModel; pollMinute: 
               />
             ))}
             <ReferenceLine
-              y={THETA}
+              y={model.threshold}
               stroke={CHART.ink}
               strokeWidth={1}
-              label={{ value: `${THETA}% threshold`, position: "insideBottomRight", fill: CHART.ink, fontSize: 11 }}
+              label={{ value: `${model.threshold}% threshold`, position: "insideBottomRight", fill: CHART.ink, fontSize: 11 }}
             />
-            <Line
-              type="monotone"
-              dataKey="passive"
-              name="Passive lecture"
-              stroke={CHART.red}
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={false}
-              activeDot={{ r: 4 }}
-              isAnimationActive={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="active"
-              name="CampusAI with activities"
-              stroke={CHART.indigo}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-              isAnimationActive={false}
-            />
+            <Line type="monotone" dataKey="passive" name="Passive lecture" stroke={CHART.red} strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
+            <Line type="monotone" dataKey="active" name="CampusAI with activities" stroke={CHART.indigo} strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
             <Legend verticalAlign="top" align="left" height={28} iconType="plainline" wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <DataTableDetails
-        columns={["Minute", "Passive lecture", "CampusAI"]}
-        rows={everyFifth(data).map((row) => [row.t, `${row.passive}%`, `${row.active}%`])}
-      />
-      <p className="mt-3 text-xs leading-relaxed text-slate-600">
-        Modelled curves, not measured class data. Decay shape follows the concentration window from Stuart &amp; Rutherford (1978), with stratum, cohort and time-of-day
-        multipliers from the IUCEE-based plan; Bunce, Flens &amp; Neiles (2010) informs the activity resets.
-      </p>
+      <DataTableDetails columns={["Minute", "Passive lecture", "CampusAI"]} rows={everyFifth(data).map((row) => [row.t, `${row.passive}%`, `${row.active}%`])} />
+      <p className="mt-3 text-xs leading-relaxed text-slate-600">Modelled curves, not measured class data. Sources: {model.citations.join("; ")}.</p>
     </Card>
   );
 }
 
 const selectClass = "field py-1.5";
 
+/** The backend sends several cohorts per course type, so draw one and show the range. */
+function referenceStrata(curves: StrataCurve[]) {
+  const groups = new Map<string, StrataCurve[]>();
+  for (const curve of curves) groups.set(curve.stratum, [...(groups.get(curve.stratum) ?? []), curve]);
+  return [...groups.entries()].map(([stratum, group]) => {
+    const dips = group.map((curve) => curve.dip_minute);
+    const preset = STRATA_PRESETS.find((item) => item.key === stratum);
+    const band: [number, number] = group.length > 1 ? [Math.min(...dips), Math.max(...dips)] : preset?.band ?? [dips[0], dips[0]];
+    return { stratum, curve: group[0], band };
+  });
+}
+
 function StrataChart({
   model,
+  sessionId,
   pollOverride,
   pollMinute,
   onTogglePoll,
 }: {
   model: AttentionModel;
+  sessionId: string;
   pollOverride: boolean;
   pollMinute: number;
   onTogglePoll: (value: boolean) => void;
@@ -140,19 +122,40 @@ function StrataChart({
   const [cohort, setCohort] = useState<Cohort>("UG2_3");
   const [slot, setSlot] = useState<Slot>("MORNING_09AM");
 
-  const selectedParams = useMemo(() => ({ stratum, cohort, slot }), [stratum, cohort, slot]);
-  const selectedDip = dipMinute(selectedParams);
+  const localSelected = useMemo(() => {
+    const params = { stratum, cohort, slot };
+    return { curve: curveFor(params), dip: dipMinute(params) };
+  }, [stratum, cohort, slot]);
+  const [selected, setSelected] = useState(localSelected);
 
-  const data = useMemo(() => {
-    const selected = curveFor(selectedParams);
-    return model.t.map((t, index) => {
-      const row: Record<string, number> = { t, selected: selected[index] };
-      for (const curve of model.strata_curves) row[curve.key] = curve.curve[index];
-      return row;
-    });
-  }, [model, selectedParams]);
+  useEffect(() => {
+    let active = true;
+    setSelected(localSelected);
+    api
+      .getAttentionVariant(
+        sessionId,
+        { stratum, semester: String(COHORT_SEMESTER[cohort]), time_slot: slot, use_poll: "false" },
+        { ...fallbackAttentionModel(), passive_curve: localSelected.curve, dip_trigger_minute: localSelected.dip },
+      )
+      .then((response) => {
+        if (active) setSelected({ curve: response.data.passive_curve, dip: response.data.dip_trigger_minute });
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId, stratum, cohort, slot, localSelected]);
 
-  const bands = STRATA_PRESETS.filter((preset) => model.strata_curves.some((curve) => curve.key === preset.key));
+  const references = useMemo(() => referenceStrata(model.strata_curves), [model]);
+
+  const data = useMemo(
+    () =>
+      model.t.map((t, index) => {
+        const row: Record<string, number> = { t, selected: selected.curve[index] };
+        for (const reference of references) row[reference.stratum] = reference.curve.curve[index];
+        return row;
+      }),
+    [model, selected, references],
+  );
 
   return (
     <Card>
@@ -200,30 +203,27 @@ function StrataChart({
       <dl className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <div className="rounded-lg border-2 border-slate-900 p-2.5">
           <dt className="text-xs text-slate-600">Selected cohort</dt>
-          <dd className="text-lg font-semibold">Min {selectedDip}</dd>
+          <dd className="text-lg font-semibold">Min {selected.dip}</dd>
         </div>
-        {model.strata_curves.map((curve) => {
-          const preset = STRATA_PRESETS.find((item) => item.key === curve.key);
-          return (
-            <div key={curve.key} className="rounded-lg border border-slate-200 p-2.5">
-              <dt className="flex items-center gap-1.5 text-xs text-slate-600">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STRATA_COLOR[curve.key] ?? CHART.axis }} aria-hidden />
-                <span className="truncate">{curve.label}</span>
-              </dt>
-              <dd className="text-lg font-semibold">
-                Min {curve.dip_minute}
-                {preset && (
-                  <span className="ml-1 text-xs font-normal text-slate-600">
-                    band {preset.band[0]}–{preset.band[1]}
-                  </span>
-                )}
-              </dd>
-            </div>
-          );
-        })}
+        {references.map((reference) => (
+          <div key={reference.stratum} className="rounded-lg border border-slate-200 p-2.5">
+            <dt className="flex items-center gap-1.5 text-xs text-slate-600">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STRATA_COLOR[reference.stratum] ?? CHART.axis }} aria-hidden />
+              <span className="truncate" title={reference.curve.label}>
+                {reference.curve.label}
+              </span>
+            </dt>
+            <dd className="text-lg font-semibold">
+              Min {reference.curve.dip_minute}
+              <span className="ml-1 text-xs font-normal text-slate-600">
+                range {reference.band[0]}–{reference.band[1]}
+              </span>
+            </dd>
+          </div>
+        ))}
       </dl>
 
-      <div className="h-[320px]">
+      <div className="h-[340px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 18, right: 12, bottom: 18, left: -14 }}>
             <CartesianGrid vertical={false} stroke={CHART.grid} />
@@ -237,76 +237,72 @@ function StrataChart({
             />
             <YAxis domain={[0, 100]} ticks={Y_TICKS} unit="%" {...axisProps} />
             <Tooltip content={<ChartTooltip />} />
-            {bands.map((preset) => (
+            {references.map((reference) => (
               <ReferenceArea
-                key={preset.key}
-                x1={preset.band[0]}
-                x2={preset.band[1]}
-                fill={STRATA_COLOR[preset.key]}
+                key={reference.stratum}
+                x1={reference.band[0]}
+                x2={reference.band[1]}
+                fill={STRATA_COLOR[reference.stratum] ?? CHART.axis}
                 fillOpacity={0.12}
                 strokeOpacity={0}
               />
             ))}
-            <ReferenceLine y={THETA} stroke={CHART.ink} strokeWidth={1} />
+            <ReferenceLine y={model.threshold} stroke={CHART.ink} strokeWidth={1} />
             {pollOverride && (
-              <ReferenceLine
-                x={pollMinute}
-                stroke={CHART.ink}
-                strokeWidth={1.5}
-                label={{ value: `Student poll: min ${pollMinute}`, position: "top", fill: CHART.ink, fontSize: 11 }}
-              />
+              <ReferenceLine x={pollMinute} stroke={CHART.ink} strokeWidth={1.5} label={{ value: `Poll-adjusted trigger: min ${pollMinute}`, position: "top", fill: CHART.ink, fontSize: 11 }} />
             )}
-            {model.strata_curves.map((curve) => (
+            {references.map((reference) => (
               <Line
-                key={curve.key}
+                key={reference.stratum}
                 type="monotone"
-                dataKey={curve.key}
-                name={curve.label}
-                stroke={STRATA_COLOR[curve.key] ?? CHART.axis}
+                dataKey={reference.stratum}
+                name={reference.curve.label}
+                stroke={STRATA_COLOR[reference.stratum] ?? CHART.axis}
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}
                 isAnimationActive={false}
               />
             ))}
-            <Line
-              type="monotone"
-              dataKey="selected"
-              name="Selected cohort"
-              stroke={CHART.ink}
-              strokeWidth={2}
-              strokeDasharray="2 3"
-              dot={false}
-              activeDot={{ r: 4 }}
-              isAnimationActive={false}
-            />
-            <Legend verticalAlign="top" align="left" height={44} iconType="plainline" wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
+            <Line type="monotone" dataKey="selected" name="Selected cohort" stroke={CHART.ink} strokeWidth={2} strokeDasharray="2 3" dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
+            <Legend verticalAlign="top" align="left" height={48} iconType="plainline" wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
       <DataTableDetails
-        columns={["Minute", "Selected", ...model.strata_curves.map((curve) => curve.label)]}
-        rows={everyFifth(data).map((row) => [row.t, `${row.selected}%`, ...model.strata_curves.map((curve) => `${row[curve.key]}%`)])}
+        columns={["Minute", "Selected", ...references.map((reference) => reference.curve.label)]}
+        rows={everyFifth(data).map((row) => [row.t, `${row.selected}%`, ...references.map((reference) => `${row[reference.stratum]}%`)])}
       />
     </Card>
   );
 }
 
-export function AttentionCharts({
-  model,
-  pollOverride,
-  pollMinute,
-  onTogglePoll,
-}: {
-  model: AttentionModel;
-  pollOverride: boolean;
-  pollMinute: number;
-  onTogglePoll: (value: boolean) => void;
-}) {
+export function AttentionCharts({ model, sessionId, isLive }: { model: AttentionModel; sessionId: string; isLive: boolean }) {
+  const [pollOverride, setPollOverride] = useState(false);
+  const [pollModel, setPollModel] = useState<AttentionModel | null>(null);
+
+  useEffect(() => {
+    if (!pollOverride) return;
+    let active = true;
+    const local = fallbackAttentionModel(model.student_poll.avg_preferred_split_min ?? undefined);
+    if (!isLive) {
+      setPollModel(local);
+      return;
+    }
+    api.getAttentionVariant(sessionId, { use_poll: "true" }, local).then((response) => {
+      if (active) setPollModel(response.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [pollOverride, isLive, sessionId, model]);
+
+  const shown = pollOverride && pollModel ? pollModel : model;
+
   return (
     <div className="space-y-4">
-      <DecayChart model={model} pollMinute={pollOverride ? pollMinute : null} />
-      <StrataChart model={model} pollOverride={pollOverride} pollMinute={pollMinute} onTogglePoll={onTogglePoll} />
+      <DecayChart model={shown} />
+      <StrataChart model={model} sessionId={sessionId} pollOverride={pollOverride} pollMinute={Math.round(shown.dip_trigger_minute)} onTogglePoll={setPollOverride} />
     </div>
   );
 }

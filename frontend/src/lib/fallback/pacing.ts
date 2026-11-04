@@ -9,15 +9,18 @@ const session = (
   session_id: `s${session_number}`,
   session_number,
   scheduled_date,
+  session_type: "REGULAR_CLASS",
+  session_duration_mins: ltp_type === "P" ? 120 : 60,
   topic_title,
   ltp_type,
-  lecture_minutes_split: ltp_type === "P" ? 15 : 42,
-  activity_minutes_split: ltp_type === "P" ? 45 : 18,
+  lecture_minutes_split: ltp_type === "P" ? 0 : 42,
+  activity_minutes_split: ltp_type === "P" ? 120 : 18,
+  predicted_dip_minute: ltp_type === "P" ? null : 20,
   pacing_delta_mins: 0,
   status: "SCHEDULED",
 });
 
-/** Sessions 12-18 replay the run-up to IA-1 (see the marks shown under OCR). */
+/** Mirrors the backend seed's calendar around IA-1. */
 export const fallbackPacing: PacingPlan = {
   offering_id: "demo-offering-cs304",
   course_code: "CS304",
@@ -29,18 +32,20 @@ export const fallbackPacing: PacingPlan = {
   pedagogical_system_prompt:
     "Balanced conceptual explanation with real-world engineering examples and interactive problem solving.",
   milestones: [
-    { label: "Internal Assessment 1", date: "2026-10-05", kind: "IA" },
-    { label: "Internal Assessment 2", date: "2026-11-16", kind: "IA" },
-    { label: "Last working day", date: "2026-12-18", kind: "LWD" },
-    { label: "Semester End Exam starts", date: "2027-01-04", kind: "SEE" },
+    { label: "IA-1", date: "2026-11-18", kind: "IA" },
+    { label: "IA-2", date: "2026-12-09", kind: "IA" },
+    { label: "Last Working Day", date: "2026-12-18", kind: "LWD" },
+    { label: "SEE (approx.)", date: "2026-12-28", kind: "SEE" },
   ],
+  behind_session: 12,
+  behind_mins: 15,
   sessions: [
-    session(12, "2026-09-21", "L", "Depth from defocus and the thin-lens model"),
-    session(13, "2026-09-22", "L", "Stereo geometry and the epipolar constraint"),
-    session(14, "2026-09-24", "L", "Disparity and depth from rectified stereo"),
-    session(15, "2026-09-25", "P", "Lab: calibrate a stereo pair and build a depth map"),
-    session(16, "2026-09-28", "L", "Feature detection: Harris corners and SIFT"),
-    session(17, "2026-09-29", "L", "Feature matching and RANSAC"),
-    session(18, "2026-10-01", "L", "Homographies and image stitching"),
+    session(12, "2026-11-04", "L", "Feature Detection: Harris Corners & SIFT"),
+    session(13, "2026-11-05", "P", "Lab: Edge & Feature Pipelines in OpenCV"),
+    session(14, "2026-11-09", "L", "Camera Calibration & Homography"),
+    session(15, "2026-11-10", "L", "Camera Calibration & Homography"),
+    session(16, "2026-11-11", "L", "Stereo Vision & Epipolar Geometry"),
+    session(17, "2026-11-12", "P", "Lab: Stereo Depth & Panorama Stitching"),
+    session(18, "2026-11-16", "L", "Stereo Vision & Epipolar Geometry"),
   ],
 };
