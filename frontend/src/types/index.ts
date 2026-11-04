@@ -122,9 +122,24 @@ export interface QuestionSet {
   questions: ActivityQuestion[];
 }
 
+export interface TranscriptionResult {
+  accepted: boolean;
+  fallback_required: boolean;
+  text: string | null;
+  reason: string | null;
+}
+
+export interface UploadResult {
+  evaluation: OcrEvaluation;
+  engine: string;
+  sampleOnly: boolean;
+  usnWarning: string | null;
+}
+
 export interface ActivityResponse {
   learning_goal: string;
   delivery_platform: string;
+  generator?: string;
   question_sets: QuestionSet[];
   platform_sync: Record<string, unknown>;
 }

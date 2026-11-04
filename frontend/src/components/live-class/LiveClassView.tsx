@@ -18,7 +18,7 @@ const COURSE_CODE = "CS304";
 
 export function LiveClassView() {
   const { role } = useRole();
-  const { data, source } = useResource(api.getLiveClass, FALLBACK);
+  const { data, source, loading } = useResource(api.getLiveClass, FALLBACK);
   const { session, model } = data;
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [poll, setPoll] = useState(model.student_poll);
@@ -46,6 +46,7 @@ export function LiveClassView() {
       courseCode={COURSE_CODE}
       activity={activity ?? (role.id === "student" && source === "demo" ? studentActivity : null)}
       pollAverage={pollAverage}
+      disabled={loading}
       onVoted={onVoted}
     />
   );
@@ -55,7 +56,7 @@ export function LiveClassView() {
       <>
         <PageHeader title="Live Classroom" description="Follow the lecture, report your focus, and answer your own activity set." />
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-          <TranscriptPanel key={session.session_id} session={session} canControl={false} />
+          <TranscriptPanel key={session.session_id} session={session} canControl={false} disabled={loading} />
           {preview}
         </div>
       </>
@@ -67,9 +68,9 @@ export function LiveClassView() {
       <PageHeader title="Live Classroom Companion" description="Transcript-based pacing, attention modelling and anti-copying activities for the session in progress." />
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="min-w-0 space-y-4">
-          <TranscriptPanel key={session.session_id} session={session} canControl />
+          <TranscriptPanel key={session.session_id} session={session} canControl disabled={loading} />
           <AttentionCharts model={model} sessionId={session.session_id} isLive={source === "live"} />
-          <ActivityLauncher sessionId={session.session_id} activity={activity} onLaunched={setActivity} />
+          <ActivityLauncher sessionId={session.session_id} activity={activity} disabled={loading} onLaunched={setActivity} />
         </div>
         <div className="lg:sticky lg:top-14">{preview}</div>
       </div>

@@ -17,7 +17,7 @@ interface SessionAction {
 }
 
 export function CopilotQueue({ actor }: { actor: string }) {
-  const { data: tasks } = useResource(api.getTasks, fallbackTasks);
+  const { data: tasks, loading } = useResource(api.getTasks, fallbackTasks);
   const { data: memoryLog } = useResource(api.getMemory, fallbackMemory);
   const [approved, setApproved] = useState<Record<string, "live" | "demo">>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function CopilotQueue({ actor }: { actor: string }) {
   const awaiting = tasks.filter((task) => !isDone(task)).length;
 
   const approveButton = (task: CopilotTask) => (
-    <button type="button" className="btn-primary" disabled={busy !== null} onClick={() => approve(task)}>
+    <button type="button" className="btn-primary" disabled={busy !== null || loading} onClick={() => approve(task)}>
       <Zap className="h-4 w-4" aria-hidden />
       {busy === task.task_id ? "Executing" : "1-Click Approve & Execute"}
     </button>

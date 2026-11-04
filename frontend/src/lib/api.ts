@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { AttentionModel, CheckpointResult, DataSource, EvaluationData, LiveClassData, OcrEvaluation, RecalibrationSummary } from "@/types";
+import type {
+  AttentionModel,
+  CheckpointResult,
+  DataSource,
+  EvaluationData,
+  LiveClassData,
+  OcrEvaluation,
+  RecalibrationSummary,
+  TranscriptionResult,
+  UploadResult,
+} from "@/types";
 import {
   adaptActivity,
   adaptAttainment,
@@ -17,6 +27,7 @@ import {
   adaptPyq,
   adaptRecalibration,
   adaptTasks,
+  adaptTranscription,
   adaptUpload,
 } from "./adapters";
 import { fallbackAttentionModel } from "./attention";
@@ -35,6 +46,9 @@ const HEALTH_URL = `${API_URL.replace(/\/api\/v\d+$/, "")}/health`;
 /** Render can take close to a minute to wake a sleeping service. */
 const COLD_START_TIMEOUT_MS = 60_000;
 const UNREACHABLE_TIMEOUT_MS = 5_000;
+/** Writes can run a Gemini call on the backend, which allows up to two minutes. */
+const WRITE_TIMEOUT_MS = 150_000;
+const WRITE_UNREACHABLE_TIMEOUT_MS = 15_000;
 
 /** Stable IDs from the backend seed. */
 export const IDS = {
@@ -81,14 +95,16 @@ const RETRY_DELAY_MS = 500;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function send(path: string, init: RequestInit): Promise<Response> {
-  const attempts = !init.method || init.method === "GET" ? READ_ATTEMPTS : 1;
+  const isRead = !init.method || init.method === "GET";
+  const attempts = isRead ? READ_ATTEMPTS : 1;
   for (let attempt = 1; ; attempt += 1) {
     const last = attempt >= attempts;
+    const timeout = isRead ? (reachable ? COLD_START_TIMEOUT_MS : UNREACHABLE_TIMEOUT_MS) : reachable ? WRITE_TIMEOUT_MS : WRITE_UNREACHABLE_TIMEOUT_MS;
     try {
       const response = await fetch(`${API_URL}${path}`, {
         ...init,
         headers: { ...init.headers, ...(actorId ? { "X-User-Id": actorId } : {}) },
-        signal: AbortSignal.timeout(reachable ? COLD_START_TIMEOUT_MS : UNREACHABLE_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeout),
       });
       if (response.status < 500 || last) return response;
     } catch (error) {
@@ -110,7 +126,11 @@ async function call<T>(path: string, init: RequestInit, fallback: T, parse: (raw
   }
 
   if (!response.ok) {
-    return { data: fallback, source: "demo", note: `the backend rejected the request (${response.status})` };
+    const detail = await response
+      .json()
+      .then((body: { detail?: unknown }) => (typeof body.detail === "string" ? body.detail : null))
+      .catch(() => null);
+    return { data: fallback, source: "demo", note: `the backend rejected the request (${detail ?? response.status})` };
   }
   try {
     const text = await response.text();
@@ -165,6 +185,11 @@ export const api = {
     call<unknown>(`/live-class/${q(sessionId)}/attention-vote`, postJson({ student_id: IDS.student, ...body }), null, any),
   fallbackCheckpoint: (sessionId: string, body: { slide_number?: number; chunk_id?: string; topic?: string }) =>
     call<CheckpointResult | null>(`/live-class/${q(sessionId)}/fallback-checkpoint`, postJson(body), null, asAny(adaptCheckpoint)),
+  transcribeAudio: (sessionId: string, clip: File) => {
+    const form = new FormData();
+    form.append("audio", clip);
+    return call<TranscriptionResult | null>(`/live-class/${q(sessionId)}/transcribe-audio`, { method: "POST", body: form }, null, asAny(adaptTranscription));
+  },
   triggerActivity: (sessionId: string, platform: string) =>
     call(`/live-class/${q(sessionId)}/trigger-activity`, postJson({ delivery_platform: platform }), buildActivity(platform), asAny(adaptActivity)),
 
@@ -187,7 +212,7 @@ export const api = {
     const form = new FormData();
     form.append("image", file);
     form.append("offering_id", IDS.offering);
-    return call<ReturnType<typeof adaptUpload> | null>(`/ocr/evaluate-sheet/upload`, { method: "POST", body: form }, null, asAny(adaptUpload));
+    return call<UploadResult | null>(`/ocr/evaluate-sheet/upload`, { method: "POST", body: form }, null, asAny(adaptUpload));
   },
   approveAndSync: (evalId: string, corrections: Record<string, number>) =>
     call<ReturnType<typeof adaptAttainment> | null>(`/ocr/${q(evalId)}/approve-and-sync`, postJson({ corrections }), null, (raw) =>
@@ -208,12 +233,13 @@ export const api = {
 
 /* Tracks where the current page's data came from, for the badge in the top bar. */
 const sources = new Map<unknown, DataSource>();
+const pending = new Set<unknown>();
 const listeners = new Set<() => void>();
 let snapshot: DataSource | "mixed" | "idle" = "idle";
 
 function publish() {
   const values = new Set(sources.values());
-  if (values.size === 0) snapshot = "idle";
+  if (values.size === 0 || pending.size > 0) snapshot = "idle";
   else if (values.size === 2) snapshot = "mixed";
   else snapshot = [...values][0];
   listeners.forEach((listener) => listener());
@@ -237,7 +263,8 @@ export function useDataSource() {
 
 /**
  * Renders the demo data immediately and swaps in the backend's data when it
- * responds. `load` must be a stable reference, such as a method of `api`.
+ * responds. Disable actions while `loading`: until then the IDs on screen are
+ * placeholders. `load` must be a stable reference, such as a method of `api`.
  */
 export function useResource<T>(load: () => Promise<ApiResult<T>>, fallback: T) {
   const [state, setState] = useState<{ data: T; source: DataSource; loading: boolean }>({
@@ -248,14 +275,18 @@ export function useResource<T>(load: () => Promise<ApiResult<T>>, fallback: T) {
 
   useEffect(() => {
     let active = true;
+    pending.add(load);
+    publish();
     load().then((result) => {
       if (!active) return;
+      pending.delete(load);
       setState({ data: result.data, source: result.source, loading: false });
       sources.set(load, result.source);
       publish();
     });
     return () => {
       active = false;
+      pending.delete(load);
     };
   }, [load]);
 

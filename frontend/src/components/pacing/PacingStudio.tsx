@@ -127,7 +127,7 @@ function CountdownTile({ lastWorkingDay }: { lastWorkingDay: string }) {
 }
 
 export function PacingStudio() {
-  const { data: loaded, source } = useResource(api.getPacing, fallbackPacing);
+  const { data: loaded, source, loading } = useResource(api.getPacing, fallbackPacing);
   const [plan, setPlan] = useState(loaded);
   const [prompt, setPrompt] = useState(loaded.pedagogical_system_prompt);
   const [ltp, setLtp] = useState<Ltp>({ l: loaded.l_ratio, t: loaded.t_ratio, p: loaded.p_ratio });
@@ -287,7 +287,7 @@ export function PacingStudio() {
             </p>
           )}
 
-          <button type="button" className="btn-primary mt-4 w-full" disabled={!validLtp || running} onClick={runRecalibration}>
+          <button type="button" className="btn-primary mt-4 w-full" disabled={!validLtp || running || loading} onClick={runRecalibration}>
             <RefreshCw className={clsx("h-4 w-4", running && "animate-spin")} aria-hidden />
             {running ? "Recalibrating" : "Recalibrate Semester Plan"}
           </button>
