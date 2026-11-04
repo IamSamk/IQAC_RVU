@@ -23,6 +23,15 @@ def docx_text(data: bytes) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
+def pdf_text(data: bytes) -> str:
+    """Plain text from a text-based PDF, used when the AI is unavailable."""
+    try:
+        from pypdf import PdfReader
+        return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
+    except Exception:
+        return ""
+
+
 def read_file(data: bytes, filename: str, mime: str | None) -> tuple[str | None, bytes | None]:
     """Returns (text, pdf_bytes). PDFs go straight to Gemini, which reads them natively."""
     name = (filename or "").lower()
@@ -99,7 +108,9 @@ def create_from_upload(*, teacher_id: str, data: bytes, filename: str, mime: str
         engine = llm.MODEL if parsed and parsed.get("units") else "HEURISTIC"
     if not parsed or not parsed.get("units"):
         if text is None:
-            raise ValueError("Reading PDFs needs the AI engine. Upload the syllabus as .docx or .txt instead.")
+            text = pdf_text(pdf or b"")
+            if len(text.strip()) < 40:
+                raise ValueError("Couldn't read text from this PDF (it may be a scan). Try the .docx version, or retry in a minute.")
         parsed = heuristic_parse(text)
 
     ltp = parsed.get("ltp") or {}

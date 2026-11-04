@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import os
+import time
 
 import httpx
 
@@ -13,8 +14,10 @@ from app.core import config  # noqa: F401  (loads backend/.env)
 log = logging.getLogger("campusai.llm")
 
 API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY", "")
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+# Tried in order when a model is rate-limited or overloaded; each has its own free-tier quota.
+FALLBACK_MODELS = [m.strip() for m in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-flash-latest,gemini-flash-lite-latest").split(",") if m.strip()]
+BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 GROUNDING = ("You are CampusAI, an academic assistant for RV University. Use ONLY the material provided in this prompt "
              "(approved syllabus chunks, lecture transcript, or the attached file). Never add facts, examples, names or "
@@ -34,13 +37,38 @@ def _call(parts: list[dict], json_mode: bool, timeout: float = 60.0) -> str | No
         "generationConfig": {"temperature": 0.4, "thinkingConfig": {"thinkingBudget": 0},
                              **({"responseMimeType": "application/json"} if json_mode else {})},
     }
-    try:
-        r = httpx.post(URL, params={"key": API_KEY}, json=body, timeout=timeout)
-        r.raise_for_status()
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        log.warning("gemini call failed: %s", e)
-        return None
+    # The key goes in a header, never the URL, so it can't leak into logs or error messages.
+    headers = {"x-goog-api-key": API_KEY}
+    attempts = [(MODEL, 0), (MODEL, 6)] + [(m, 0) for m in FALLBACK_MODELS if m != MODEL]
+    for model, wait in attempts:
+        if wait:
+            time.sleep(wait)
+        payload = body
+        for _ in range(2):
+            try:
+                r = httpx.post(f"{BASE}/{model}:generateContent", headers=headers, json=payload, timeout=timeout)
+            except httpx.HTTPError as e:
+                log.warning("gemini %s request error: %s", model, type(e).__name__)
+                r = None
+                break
+            if r.status_code == 400 and "thinkingConfig" in payload["generationConfig"]:
+                # Some models reject a zero thinking budget; retry with their default.
+                payload = {**body, "generationConfig": {k: v for k, v in body["generationConfig"].items() if k != "thinkingConfig"}}
+                continue
+            break
+        if r is None or r.status_code in (404, 429, 500, 503):
+            if r is not None:
+                log.warning("gemini %s unavailable (HTTP %s), trying next", model, r.status_code)
+            continue
+        if r.status_code != 200:
+            log.warning("gemini %s failed (HTTP %s)", model, r.status_code)
+            continue
+        try:
+            return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, ValueError):
+            log.warning("gemini %s returned no text", model)
+            continue
+    return None
 
 
 def text(prompt: str, timeout: float = 60.0) -> str | None:
