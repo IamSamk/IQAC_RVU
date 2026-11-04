@@ -170,7 +170,7 @@ export function OcrScanner() {
             </Notice>
           </div>
         )}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div>
             <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
               <ScanLine className="h-4 w-4 text-slate-600" aria-hidden />
@@ -277,7 +277,7 @@ export function OcrScanner() {
           title="CO attainment"
           description={`Average marks per course outcome. The target is ${attainment.target_pct}%. ${attainment.approved_sheets} of ${attainment.total_sheets} sheets are verified.`}
         />
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <div>
             <div className="h-[260px]">
               <ResponsiveContainer width="100%" height="100%">

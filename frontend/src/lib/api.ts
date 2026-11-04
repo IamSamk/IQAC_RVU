@@ -62,17 +62,47 @@ export function setActor(userId: string) {
   actorId = userId;
 }
 
-async function call<T>(path: string, init: RequestInit, fallback: T, parse: (raw: unknown) => T): Promise<ApiResult<T>> {
-  const isWrite = Boolean(init.method) && init.method !== "GET";
-  if (isWrite && !reachable) return { data: fallback, source: "demo", note: OFFLINE };
+/**
+ * The deployed backend answers most simultaneous requests with HTTP 500, so the
+ * client sends one at a time. Its 500s also lack CORS headers, which the browser
+ * reports as a network error, so reads retry on either kind of failure. Writes
+ * never retry: a failed write may still have been applied.
+ */
+let queue: Promise<unknown> = Promise.resolve();
 
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = queue.then(task, task);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+const READ_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 500;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function send(path: string, init: RequestInit): Promise<Response> {
+  const attempts = !init.method || init.method === "GET" ? READ_ATTEMPTS : 1;
+  for (let attempt = 1; ; attempt += 1) {
+    const last = attempt >= attempts;
+    try {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: { ...init.headers, ...(actorId ? { "X-User-Id": actorId } : {}) },
+        signal: AbortSignal.timeout(reachable ? COLD_START_TIMEOUT_MS : UNREACHABLE_TIMEOUT_MS),
+      });
+      if (response.status < 500 || last) return response;
+    } catch (error) {
+      const timedOut = error instanceof DOMException && error.name === "TimeoutError";
+      if (last || timedOut) throw error;
+    }
+    await wait(RETRY_DELAY_MS * attempt);
+  }
+}
+
+async function call<T>(path: string, init: RequestInit, fallback: T, parse: (raw: unknown) => T): Promise<ApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      headers: { ...init.headers, ...(actorId ? { "X-User-Id": actorId } : {}) },
-      signal: AbortSignal.timeout(reachable ? COLD_START_TIMEOUT_MS : UNREACHABLE_TIMEOUT_MS),
-    });
+    response = await enqueue(() => send(path, init));
     reachable = true;
   } catch {
     reachable = false;

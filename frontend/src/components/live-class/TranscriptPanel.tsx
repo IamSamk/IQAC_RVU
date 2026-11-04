@@ -14,7 +14,7 @@ const INITIAL_LINES = 3;
 
 function Waveform({ active }: { active: boolean }) {
   return (
-    <div className="flex h-12 items-center gap-1 overflow-hidden rounded-lg bg-brand-950 px-3" aria-hidden>
+    <div className="flex h-12 items-center justify-between gap-1 overflow-hidden rounded-lg bg-brand-950 px-3" aria-hidden>
       {Array.from({ length: 48 }, (_, index) => (
         <span
           key={index}

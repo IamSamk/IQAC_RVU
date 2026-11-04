@@ -37,6 +37,8 @@ const axisProps = {
 
 const everyFifth = <T,>(rows: T[]) => rows.filter((_, index) => index % 5 === 0);
 
+const legendLabel = (value: string) => <span style={{ color: CHART.ink }}>{value}</span>;
+
 function DecayChart({ model }: { model: AttentionModel }) {
   const data = useMemo(
     () => model.t.map((t, index) => ({ t, passive: model.passive_curve[index], active: model.active_intervened_curve[index] })),
@@ -77,11 +79,11 @@ function DecayChart({ model }: { model: AttentionModel }) {
               y={model.threshold}
               stroke={CHART.ink}
               strokeWidth={1}
-              label={{ value: `${model.threshold}% threshold`, position: "insideBottomRight", fill: CHART.ink, fontSize: 11 }}
+              label={{ value: `${model.threshold}% threshold`, position: "insideBottomLeft", fill: CHART.ink, fontSize: 11 }}
             />
             <Line type="monotone" dataKey="passive" name="Passive lecture" stroke={CHART.red} strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
             <Line type="monotone" dataKey="active" name="CampusAI with activities" stroke={CHART.indigo} strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
-            <Legend verticalAlign="top" align="left" height={28} iconType="plainline" wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
+            <Legend verticalAlign="top" align="left" height={28} iconType="plainline" formatter={legendLabel} wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -108,12 +110,14 @@ function referenceStrata(curves: StrataCurve[]) {
 function StrataChart({
   model,
   sessionId,
+  isLive,
   pollOverride,
   pollMinute,
   onTogglePoll,
 }: {
   model: AttentionModel;
   sessionId: string;
+  isLive: boolean;
   pollOverride: boolean;
   pollMinute: number;
   onTogglePoll: (value: boolean) => void;
@@ -129,8 +133,9 @@ function StrataChart({
   const [selected, setSelected] = useState(localSelected);
 
   useEffect(() => {
-    let active = true;
     setSelected(localSelected);
+    if (!isLive) return;
+    let active = true;
     api
       .getAttentionVariant(
         sessionId,
@@ -143,7 +148,7 @@ function StrataChart({
     return () => {
       active = false;
     };
-  }, [sessionId, stratum, cohort, slot, localSelected]);
+  }, [sessionId, isLive, stratum, cohort, slot, localSelected]);
 
   const references = useMemo(() => referenceStrata(model.strata_curves), [model]);
 
@@ -265,7 +270,7 @@ function StrataChart({
               />
             ))}
             <Line type="monotone" dataKey="selected" name="Selected cohort" stroke={CHART.ink} strokeWidth={2} strokeDasharray="2 3" dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
-            <Legend verticalAlign="top" align="left" height={48} iconType="plainline" wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
+            <Legend verticalAlign="top" align="left" height={48} iconType="plainline" formatter={legendLabel} wrapperStyle={{ fontSize: 12, paddingLeft: 20 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -302,7 +307,7 @@ export function AttentionCharts({ model, sessionId, isLive }: { model: Attention
   return (
     <div className="space-y-4">
       <DecayChart model={shown} />
-      <StrataChart model={model} sessionId={sessionId} pollOverride={pollOverride} pollMinute={Math.round(shown.dip_trigger_minute)} onTogglePoll={setPollOverride} />
+      <StrataChart model={model} sessionId={sessionId} isLive={isLive} pollOverride={pollOverride} pollMinute={Math.round(shown.dip_trigger_minute)} onTogglePoll={setPollOverride} />
     </div>
   );
 }

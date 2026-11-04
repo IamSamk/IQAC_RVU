@@ -211,7 +211,7 @@ export function PacingStudio() {
           ))}
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <Card>
           <CardHeader title="Teacher persona and protocol" description="These settings shape how each session is split and where the activity falls." />
 

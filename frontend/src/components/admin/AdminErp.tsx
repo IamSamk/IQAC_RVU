@@ -71,7 +71,7 @@ export function AdminErp() {
           </div>
         </Card>
 
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader title="RBAC matrix" description="Roles from highest to lowest rank, with what each is allowed to do." />
             <div className="overflow-x-auto">

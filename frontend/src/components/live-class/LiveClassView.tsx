@@ -44,7 +44,7 @@ export function LiveClassView() {
       sessionId={session.session_id}
       sessionNumber={session.session_number}
       courseCode={COURSE_CODE}
-      activity={activity ?? (role.id === "student" ? studentActivity : null)}
+      activity={activity ?? (role.id === "student" && source === "demo" ? studentActivity : null)}
       pollAverage={pollAverage}
       onVoted={onVoted}
     />
@@ -54,7 +54,7 @@ export function LiveClassView() {
     return (
       <>
         <PageHeader title="Live Classroom" description="Follow the lecture, report your focus, and answer your own activity set." />
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <TranscriptPanel key={session.session_id} session={session} canControl={false} />
           {preview}
         </div>
@@ -65,7 +65,7 @@ export function LiveClassView() {
   return (
     <>
       <PageHeader title="Live Classroom Companion" description="Transcript-based pacing, attention modelling and anti-copying activities for the session in progress." />
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="min-w-0 space-y-4">
           <TranscriptPanel key={session.session_id} session={session} canControl />
           <AttentionCharts model={model} sessionId={session.session_id} isLive={source === "live"} />
